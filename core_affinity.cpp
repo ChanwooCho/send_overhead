@@ -61,9 +61,9 @@ int main() {
             pid_t tid = syscall(SYS_gettid);
             // Set the CPU affinity.
             if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
-                std::cerr << "Error setting affinity for thread " << thread_id 
-                          << " (core " << desired_core << "): " 
-                          << std::strerror(errno) << std::endl;
+                // std::cerr << "Error setting affinity for thread " << thread_id 
+                //           << " (core " << desired_core << "): " 
+                //           << std::strerror(errno) << std::endl;
             } else {
                 // std::cout << "Thread " << thread_id 
                 //           << " is set to core " << desired_core << std::endl;
