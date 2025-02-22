@@ -198,7 +198,7 @@ int main(int argc, char* argv[]) {
         // Wait for the asynchronous send thread to finish, if it was started.
         if (async_send_started) {
             pthread_join(send_thread, nullptr);
-            std::cout << "Thread " << thread_id << " async send thread completed." << std::endl;
+            // std::cout << "Thread " << thread_id << " async send thread completed." << std::endl;
         }
         
         double thread_time = omp_get_wtime() - start_time;
