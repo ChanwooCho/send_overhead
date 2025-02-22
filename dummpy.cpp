@@ -7,38 +7,37 @@
 #define COLS 5120  // Number of columns in matrix A and rows in matrix B
 
 int main() {
-    // Dynamically allocate matrix A (ROWS x COLS) using fp32 (float)
+    // Dynamically allocate matrix A (ROWS x COLS) as fp32 (float)
     float** A = new float*[ROWS];
     for (int i = 0; i < ROWS; ++i) {
         A[i] = new float[COLS];
     }
     
-    // Dynamically allocate matrix B (COLS x 1)
+    // Allocate matrix B (COLS x 1)
     float* B = new float[COLS];
     
     // Allocate result matrix C (ROWS x 1)
     float* C = new float[ROWS];
     
     // Initialize random seed
-    srand(time(NULL));
+    srand(static_cast<unsigned int>(time(NULL)));
     
-    // Initialize matrix A with random numbers (e.g., values between 0 and 9)
+    // Initialize matrix A with random float numbers in the range [0, 10)
     for (int i = 0; i < ROWS; ++i) {
         for (int j = 0; j < COLS; ++j) {
-            A[i][j] = static_cast<float>(rand() % 10);
+            A[i][j] = static_cast<float>(rand()) / RAND_MAX * 10.0f;
         }
     }
     
-    // Initialize matrix B with random numbers (e.g., values between 0 and 9)
+    // Initialize matrix B with random float numbers in the range [0, 10)
     for (int i = 0; i < COLS; ++i) {
-        B[i] = static_cast<float>(rand() % 10);
+        B[i] = static_cast<float>(rand()) / RAND_MAX * 10.0f;
     }
     
     // Set OpenMP to use 4 threads
     omp_set_num_threads(4);
     
     // Matrix multiplication: C = A * B
-    // Each C[i] is the dot product of the i-th row of A with B.
     #pragma omp parallel num_threads(4)
     {
         int duty = ROWS / 4;
