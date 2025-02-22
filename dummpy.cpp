@@ -41,7 +41,7 @@ int main() {
     // 각 C[i]는 A[i]와 B의 내적입니다.
     #pragma omp parallel num_threads(4)
     {
-        int duty = ROWS // 4;
+        int duty = 5120 // 4;
         int start = duty * omp_get_thread_num();
         int end = duty * (omp_get_thread_num() + 1);
         printf("start = %d, end = %d\n", start, end);
