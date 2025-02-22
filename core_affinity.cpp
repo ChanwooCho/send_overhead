@@ -3,8 +3,8 @@
 #include <ctime>
 #include <omp.h>
 #include <pthread.h>
-#include <sched.h>     // For sched_setaffinity
-#include <unistd.h>    // For syscall and sysconf
+#include <sched.h>      // For sched_setaffinity and sched_getcpu
+#include <unistd.h>     // For syscall and sysconf
 #include <sys/syscall.h> // For SYS_gettid
 #include <cerrno>
 #include <cstring>
@@ -19,11 +19,11 @@ int main() {
     std::cout << "Number of available cores: " << num_cores << std::endl;
     
     // Allocate memory for matrices A, B, and C.
-    float* A = new float[ROWS * COLS];     // Matrix A: 5120 x 5120
-    float* B = new float[COLS * B_COLS];     // Matrix B: 5120 x 128
-    float* C = new float[ROWS * B_COLS];     // Result matrix C: 5120 x 128
+    float* A = new float[ROWS * COLS];
+    float* B = new float[COLS * B_COLS];
+    float* C = new float[ROWS * B_COLS];
 
-    // Initialize matrices A and B with random values between 0 and 1.
+    // Initialize matrices A and B with random values.
     srand(static_cast<unsigned int>(time(0)));
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLS; j++) {
@@ -43,43 +43,48 @@ int main() {
     #pragma omp parallel num_threads(4)
     {
         int thread_id = omp_get_thread_num();
-        // Map each thread: thread 0 -> core 4, thread 1 -> core 5, etc.
-        int core_id = thread_id + 4;
-        
+        // Map threads: thread 0 -> core 4, thread 1 -> core 5, etc.
+        int desired_core = thread_id + 4;
+
         // Check if the desired core is available.
-        if (core_id >= num_cores) {
+        if (desired_core >= num_cores) {
             std::cerr << "Warning: Thread " << thread_id 
-                      << " requested core " << core_id 
+                      << " requested core " << desired_core 
                       << ", but only " << num_cores 
                       << " cores are available." << std::endl;
         } else {
-            // Create a CPU set and add the desired core.
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
-            CPU_SET(core_id, &cpuset);
+            CPU_SET(desired_core, &cpuset);
 
-            // Get the thread ID using syscall.
+            // Get the thread ID.
             pid_t tid = syscall(SYS_gettid);
-            // Set the CPU affinity for the current thread.
+            // Set the CPU affinity.
             if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
                 std::cerr << "Error setting affinity for thread " << thread_id 
-                          << " (core " << core_id << "): " 
+                          << " (core " << desired_core << "): " 
                           << std::strerror(errno) << std::endl;
             } else {
                 std::cout << "Thread " << thread_id 
-                          << " is set to core " << core_id << std::endl;
+                          << " is set to core " << desired_core << std::endl;
             }
         }
 
-        // Record the start time for this thread.
+        // For debugging: print the actual CPU on which the thread is running.
+        int actual_cpu = sched_getcpu();
+        std::cout << "Thread " << thread_id 
+                  << " is actually running on CPU " << actual_cpu << std::endl;
+
+        // Record start time.
         double start_time = omp_get_wtime();
 
-        // Each thread processes a part of the matrix multiplication.
+        // Determine the work for this thread.
         int duty = ROWS / 4;
         int start = thread_id * duty;
         int end = (thread_id + 1) * duty;
-        // printf("Thread %d: start = %d, end = %d\n", thread_id, start, end);
+        printf("Thread %d: start = %d, end = %d\n", thread_id, start, end);
 
+        // Matrix multiplication.
         for (int i = start; i < end; i++) {
             for (int j = 0; j < B_COLS; j++) {
                 float sum = 0.0f;
@@ -90,9 +95,8 @@ int main() {
             }
         }
 
-        // Calculate and print the execution time for this thread.
-        double end_time = omp_get_wtime();
-        double thread_time = end_time - start_time;
+        // Calculate and print execution time.
+        double thread_time = omp_get_wtime() - start_time;
         #pragma omp critical
         {
             std::cout << "Thread " << thread_id 
@@ -101,7 +105,7 @@ int main() {
         }
     }
 
-    // Print the first 10 elements of the result matrix for checking.
+    // Print the first 10 elements of matrix C.
     std::cout << "First 10 results:" << std::endl;
     for (int i = 0; i < 10 && i < ROWS * B_COLS; i++) {
         std::cout << C[i] << " ";
