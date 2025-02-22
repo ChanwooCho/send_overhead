@@ -162,6 +162,7 @@ int main(int argc, char* argv[]) {
         
         pthread_t send_thread;
         bool async_send_started = false;
+        int actual_cpu = sched_getcpu();
         double start_time = omp_get_wtime();
         
         // Matrix multiplication loop.
@@ -210,6 +211,8 @@ int main(int argc, char* argv[]) {
         {
             std::cout << "Thread " << thread_id << " execution time: " 
                       << thread_time * 1000 * 1000 << " us" << std::endl;
+            std::cout << "Thread " << thread_id 
+                      << " is actually running on CPU " << actual_cpu << std::endl;
         }
         
         close(sockfd);
