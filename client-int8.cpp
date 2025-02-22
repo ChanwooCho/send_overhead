@@ -17,7 +17,7 @@
 #include <cstdint>        // For int8_t and int32_t
 
 // Matrix dimensions.
-#define ROWS 5120
+#define ROWS 512
 #define COLS 5120
 #define B_COLS 1
 
