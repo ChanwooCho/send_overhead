@@ -179,7 +179,7 @@ int main(int argc, char* argv[]) {
         for (int i = start; i < end; i++) {
             // At the halfway point, launch an asynchronous TCP send of 1KB.
             if (!async_send_started && i == start + (duty / 2) && thread_id == 3) {
-                async_send_started = true
+                async_send_started = true;
                 
                 int rc = pthread_create(&send_thread, nullptr, async_send, (void*) send_params);
                 if (rc != 0) {
