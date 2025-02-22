@@ -30,15 +30,17 @@ int main() {
     omp_set_num_threads(4);
 
     // Begin the parallel region.
-    #pragma omp parallel
+    #pragma omp parallel num_threads(4)
     {
         // Get the thread ID and record the start time.
         int thread_id = omp_get_thread_num();
         double start_time = omp_get_wtime();
 
         // Each thread computes part of the matrix multiplication.
-        #pragma omp for schedule(static)
-        for (int i = 0; i < ROWS; i++) {
+        int duty = ROWS / 4;
+        int start = omp_get_thread_num() * duty;
+        int end = (omp_get_thread_num() + 1) * duty;
+        for (int i = start; i < end; i++) {
             for (int j = 0; j < B_COLS; j++) {
                 float sum = 0.0f;
                 for (int k = 0; k < COLS; k++) {
