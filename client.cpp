@@ -23,66 +23,43 @@
 // Define the size of the message to send (1KB).
 #define ONE_KB 1024
 
-// Data structure for the pre-created asynchronous send worker.
-struct AsyncWorkerData {
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-    bool request;   // True when a send request is waiting.
-    bool exit;      // True when the worker should exit.
-    int sockfd;     // Socket descriptor.
-    int core_id;    // Core to set affinity.
-    char* message;  // Pointer to the 1KB message.
-    size_t msg_len; // Length of the message.
+// Structure to pass parameters to the asynchronous send thread.
+struct AsyncSendParams {
+    int sockfd;         // Socket descriptor for TCP connection.
+    int core_id;        // Desired core (0-3) for async send.
+    char* message;      // Message to send.
+    size_t msg_len;     // Length of the message.
 };
 
-// The worker thread function. It waits until a request is signaled.
-void* async_worker(void* arg) {
-    AsyncWorkerData* data = (AsyncWorkerData*) arg;
-    while (true) {
-        // Wait for a send request or exit signal.
-        pthread_mutex_lock(&data->mutex);
-        while (!data->request && !data->exit) {
-            pthread_cond_wait(&data->cond, &data->mutex);
-        }
-        // If exit flag is set, break out.
-        if (data->exit) {
-            pthread_mutex_unlock(&data->mutex);
-            break;
-        }
-        // Copy local variables for sending.
-        int sockfd = data->sockfd;
-        int core_id = data->core_id;
-        char* message = data->message;
-        size_t msg_len = data->msg_len;
-        // Clear the request flag.
-        data->request = false;
-        pthread_mutex_unlock(&data->mutex);
-        
-        // Set the CPU affinity for this worker thread.
-        cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(core_id, &cpuset);
-        pid_t tid = syscall(SYS_gettid);
-        if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
-            std::cerr << "Error setting affinity in async_worker: " 
-                      << strerror(errno) << std::endl;
-        } else {
-            std::cout << "Async worker thread is set to core " << core_id << std::endl;
-        }
-        
-        // Perform the blocking send of 1KB data.
-        ssize_t bytes_sent = send(sockfd, message, msg_len, 0);
-        if (bytes_sent < 0) {
-            std::cerr << "Send error in async_worker: " << strerror(errno) << std::endl;
-        } else {
-            std::cout << "Async worker thread on core " << core_id 
-                      << " sent " << bytes_sent << " bytes." << std::endl;
-        }
-        
-        // Free the allocated message buffer.
-        free(message);
+// Function that runs in a separate pthread to call send() asynchronously.
+void* async_send(void* arg) {
+    AsyncSendParams* params = (AsyncSendParams*) arg;
+    
+    // Set CPU affinity to the desired core (0-3).
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(params->core_id, &cpuset);
+    pid_t tid = syscall(SYS_gettid);
+    if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
+        std::cerr << "Error setting affinity in async_send: " 
+                  << strerror(errno) << std::endl;
+    } else {
+        std::cout << "Async send thread is set to core " << params->core_id << std::endl;
     }
-    return nullptr;
+    
+    // Perform the blocking send of 1KB data.
+    ssize_t bytes_sent = send(params->sockfd, params->message, params->msg_len, 0);
+    if (bytes_sent < 0) {
+        std::cerr << "Send error in async thread: " << strerror(errno) << std::endl;
+    } else {
+        std::cout << "Async send thread on core " << params->core_id 
+                  << " sent " << bytes_sent << " bytes." << std::endl;
+    }
+    
+    // Free allocated resources.
+    free(params->message);
+    delete params;
+    pthread_exit(nullptr);
 }
 
 int main(int argc, char* argv[]) {
@@ -94,7 +71,7 @@ int main(int argc, char* argv[]) {
     
     // Parse the IP address and port.
     std::string input(argv[1]);
-    size_t colon_pos = input.find(':');
+    std::size_t colon_pos = input.find(':');
     if (colon_pos == std::string::npos) {
         std::cerr << "Invalid argument format. Use: <ip_address:port>" << std::endl;
         return -1;
@@ -176,22 +153,6 @@ int main(int argc, char* argv[]) {
         }
         std::cout << "Thread " << thread_id << " connected to server." << std::endl;
         
-        // For thread 3, pre-create the asynchronous send worker thread.
-        bool async_send_started = false;
-        pthread_t worker_thread;
-        AsyncWorkerData worker_data;
-        if (thread_id == 3) {
-            worker_data.request = false;
-            worker_data.exit = false;
-            pthread_mutex_init(&worker_data.mutex, nullptr);
-            pthread_cond_init(&worker_data.cond, nullptr);
-            int rc = pthread_create(&worker_thread, nullptr, async_worker, (void*)&worker_data);
-            if (rc != 0) {
-                std::cerr << "Thread " << thread_id << " failed to create async worker thread: " 
-                          << strerror(rc) << std::endl;
-            }
-        }
-        
         // Determine the range of rows this thread will process.
         int duty = ROWS / 4;
         int start = thread_id * duty;
@@ -199,29 +160,34 @@ int main(int argc, char* argv[]) {
         std::cout << "Thread " << thread_id << ": processing rows " 
                   << start << " to " << end - 1 << std::endl;
         
+        pthread_t send_thread;
+        bool async_send_started = false;
         double start_time = omp_get_wtime();
         
         // Matrix multiplication loop.
         for (int i = start; i < end; i++) {
-            // For thread 3, at the halfway point, signal the worker to send data.
-            if (thread_id == 3 && !async_send_started && i == start + (duty / 2)) {
+            // At the halfway point, launch an asynchronous TCP send of 1KB.
+            if (!async_send_started && i == start + (duty / 2) && thread_id == 3) {
                 async_send_started = true;
                 // Create a 1KB message filled with 'A'.
                 char* message = (char*)malloc(ONE_KB);
                 memset(message, 'A', ONE_KB);
                 
-                // Fill in the worker data and signal the async worker.
-                pthread_mutex_lock(&worker_data.mutex);
-                worker_data.sockfd = sockfd;
-                worker_data.core_id = thread_id; // Using thread id for affinity.
-                worker_data.message = message;
-                worker_data.msg_len = ONE_KB;
-                worker_data.request = true;
-                pthread_cond_signal(&worker_data.cond);
-                pthread_mutex_unlock(&worker_data.mutex);
+                // Allocate and set parameters for the async send thread.
+                AsyncSendParams* send_params = new AsyncSendParams;
+                send_params->sockfd = sockfd;
+                send_params->core_id = thread_id; // Use cores 0-3 for async send.
+                send_params->message = message;
+                send_params->msg_len = ONE_KB;
                 
-                std::cout << "Thread " << thread_id 
-                          << " signaled async worker thread at row " << i << std::endl;
+                int rc = pthread_create(&send_thread, nullptr, async_send, (void*) send_params);
+                if (rc != 0) {
+                    std::cerr << "Thread " << thread_id << " failed to create async send thread: " 
+                              << strerror(rc) << std::endl;
+                } else {
+                    std::cout << "Thread " << thread_id 
+                              << " started async send thread at row " << i << std::endl;
+                }
             }
             // Standard matrix multiplication inner loop.
             for (int j = 0; j < B_COLS; j++) {
@@ -233,23 +199,17 @@ int main(int argc, char* argv[]) {
             }
         }
         
+        // Wait for the asynchronous send thread to finish, if it was started.
+        if (async_send_started) {
+            pthread_join(send_thread, nullptr);
+            std::cout << "Thread " << thread_id << " async send thread completed." << std::endl;
+        }
+        
         double thread_time = omp_get_wtime() - start_time;
         #pragma omp critical
         {
             std::cout << "Thread " << thread_id << " execution time: " 
                       << thread_time * 1000 * 1000 << " us" << std::endl;
-        }
-        
-        // For thread 3, after finishing work, signal the worker to exit and join it.
-        if (thread_id == 3 && async_send_started) {
-            pthread_mutex_lock(&worker_data.mutex);
-            worker_data.exit = true;
-            pthread_cond_signal(&worker_data.cond);
-            pthread_mutex_unlock(&worker_data.mutex);
-            pthread_join(worker_thread, nullptr);
-            std::cout << "Thread " << thread_id << " async worker thread completed." << std::endl;
-            pthread_mutex_destroy(&worker_data.mutex);
-            pthread_cond_destroy(&worker_data.cond);
         }
         
         close(sockfd);
