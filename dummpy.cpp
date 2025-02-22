@@ -1,92 +1,65 @@
-#define _GNU_SOURCE
-#include <stdio.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <sched.h>
+#include <iostream>
 #include <omp.h>
+#include <chrono>
+#include <thread>
+#include <vector>
+#include <atomic>
+#include <sched.h>
+#include <pthread.h>
 
-#define SIZE 4096  // Matrix size (4096 x 4096)
+#define SIZE 4096  // Matrix size: 4096 x 4096
 
-// Dummy send() function to simulate the send overhead.
-// Replace this with your actual send() implementation if needed.
-void send_data() {
+// A flag to signal the send threads to stop.
+std::atomic<bool> running(true);
+
+// This function simulates a "send" operation.
+// It does some dummy work to create an overhead.
+void send_function(int id) {
     volatile int dummy = 0;
-    // A simple loop to simulate some work
+    // Loop to simulate work (you can adjust the number of iterations)
     for (int i = 0; i < 100000; i++) {
-        dummy += i;
+        dummy += (i % 7);
     }
 }
 
-// Structure for thread argument to pass how many times to call send_data()
-typedef struct {
-    int times;
-} thread_arg;
-
-// Thread function for asynchronous send() calls.
-void* send_thread_func(void* arg) {
-    // Pin this thread to core 0 (or any core not used for matrix multiplication)
+// This is the function for each send thread.
+// Each thread is pinned to one of cores 0-3 (round-robin assignment).
+void send_thread_func(int thread_id) {
+    int core_id = thread_id % 4; // Use cores 0, 1, 2, 3
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
-    CPU_SET(0, &cpuset);
-    pthread_t thread = pthread_self();
-    pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
-
-    thread_arg *targ = (thread_arg*)arg;
-    for (int i = 0; i < targ->times; i++) {
-        send_data();
+    CPU_SET(core_id, &cpuset);
+    pthread_t current_thread = pthread_self();
+    int rc = pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
+    if (rc != 0) {
+        std::cerr << "Error setting affinity for send thread " << thread_id << ": " << rc << "\n";
     }
-    return NULL;
+    
+    // Keep calling send_function while matrix multiplication is running.
+    while (running.load()) {
+        send_function(thread_id);
+    }
 }
 
-int main() {
-    // Allocate memory for matrices A, B, and C.
-    float *A = (float*) malloc(SIZE * SIZE * sizeof(float));
-    float *B = (float*) malloc(SIZE * SIZE * sizeof(float));
-    float *C = (float*) malloc(SIZE * SIZE * sizeof(float));
-    if (!A || !B || !C) {
-        printf("Memory allocation failed\n");
-        return -1;
-    }
-
-    // Initialize matrices: A and B with 1.0, C with 0.0.
-    for (int i = 0; i < SIZE * SIZE; i++) {
-        A[i] = 1.0f;
-        B[i] = 1.0f;
-        C[i] = 0.0f;
-    }
-
-    // Create an asynchronous thread for send() calls.
-    pthread_t send_thread;
-    thread_arg targ;
-    targ.times = 7;  // Call send_data() 7 times
-
-    if (pthread_create(&send_thread, NULL, send_thread_func, &targ) != 0) {
-        printf("Failed to create send thread\n");
-        return -1;
-    }
-
-    // Disable dynamic adjustment of threads (optional).
-    omp_set_dynamic(0);
-    // Set OpenMP to use 4 threads.
-    omp_set_num_threads(4);
-
-    // Start timing the matrix multiplication.
-    double start_time = omp_get_wtime();
-
-    // Matrix multiplication using OpenMP.
-    // Each thread is pinned to one of the cores 4, 5, 6, or 7.
+// This function performs matrix multiplication of two SIZE x SIZE matrices.
+// It uses an OpenMP parallel region where each thread is pinned to a core (cores 4–7).
+void matrix_multiplication(const float* A, const float* B, float* C) {
     #pragma omp parallel
     {
-        int thread_num = omp_get_thread_num();
-        int core_id = 4 + thread_num;  // Use cores 4,5,6,7 for computation.
+        int thread_id = omp_get_thread_num();
+        // Pin OpenMP thread to core 4, 5, 6, or 7
+        int core_id = 4 + thread_id;  // thread_id from 0 to 3 gives core 4 to 7
         cpu_set_t cpuset;
         CPU_ZERO(&cpuset);
         CPU_SET(core_id, &cpuset);
-        pthread_t tid = pthread_self();
-        pthread_setaffinity_np(tid, sizeof(cpu_set_t), &cpuset);
-
-        // Use a collapsed loop for better load balance.
-        #pragma omp for collapse(2) schedule(static)
+        pthread_t current_thread = pthread_self();
+        int rc = pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
+        if (rc != 0) {
+            std::cerr << "Error setting affinity for OpenMP thread " << thread_id << ": " << rc << "\n";
+        }
+        
+        // Use OpenMP for loop to divide work among threads.
+        #pragma omp for schedule(static)
         for (int i = 0; i < SIZE; i++) {
             for (int j = 0; j < SIZE; j++) {
                 float sum = 0.0f;
@@ -97,26 +70,50 @@ int main() {
             }
         }
     }
+}
 
-    // End timing after matrix multiplication completes.
-    double end_time = omp_get_wtime();
-    printf("Matrix multiplication took %f seconds\n", end_time - start_time);
-
-    // Wait for the asynchronous send thread to finish.
-    pthread_join(send_thread, NULL);
-
-    // Optional: Verify a result.
-    // Since A and B are filled with ones, each element in C should equal SIZE.
-    if (C[0] != (float)SIZE) {
-        printf("Unexpected result: C[0] = %f\n", C[0]);
-    } else {
-        printf("Result verified: C[0] = %f\n", C[0]);
+int main() {
+    // Allocate memory for matrices A, B, and C.
+    float* A = new float[SIZE * SIZE];
+    float* B = new float[SIZE * SIZE];
+    float* C = new float[SIZE * SIZE];
+    
+    // Initialize matrices A and B with 1.0 (you can change these values as needed).
+    for (int i = 0; i < SIZE * SIZE; i++) {
+        A[i] = 1.0f;
+        B[i] = 1.0f;
     }
-
+    
+    // Set OpenMP to use 4 threads.
+    omp_set_num_threads(4);
+    
+    // Create 7 send threads that simulate the send() function on cores 0–3.
+    std::vector<std::thread> send_threads;
+    for (int i = 0; i < 7; i++) {
+        send_threads.emplace_back(send_thread_func, i);
+    }
+    
+    // Start timing the matrix multiplication.
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    // Perform the matrix multiplication (on cores 4–7).
+    matrix_multiplication(A, B, C);
+    
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end_time - start_time;
+    
+    // Stop the send threads.
+    running.store(false);
+    for (auto& th : send_threads) {
+        th.join();
+    }
+    
+    std::cout << "Matrix multiplication took " << duration.count() << " seconds." << std::endl;
+    
     // Free allocated memory.
-    free(A);
-    free(B);
-    free(C);
-
+    delete[] A;
+    delete[] B;
+    delete[] C;
+    
     return 0;
 }
