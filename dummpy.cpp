@@ -3,6 +3,9 @@
 #include <ctime>
 #include <omp.h>
 
+setenv("OMP_PROC_BIND", "true", 1);
+setenv("OMP_PLACES", "cores", 1);
+
 #define ROWS 5120   // Number of rows in matrix A
 #define COLS 5120   // Number of columns in matrix A and number of rows in vector B
 
