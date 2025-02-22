@@ -11,7 +11,7 @@
 
 #define ROWS 5120    // Number of rows in matrix A
 #define COLS 5120    // Number of columns in matrix A and number of rows in matrix B
-#define B_COLS 128   // Number of columns in matrix B
+#define B_COLS 1   // Number of columns in matrix B
 
 int main() {
     // Check and print the number of available cores.
