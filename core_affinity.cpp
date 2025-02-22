@@ -100,8 +100,8 @@ int main() {
         #pragma omp critical
         {
             std::cout << "Thread " << thread_id 
-                      << " execution time: " << thread_time 
-                      << " seconds." << std::endl;
+                      << " execution time: " << thread_time * 1000 * 1000 
+                      << " us" << std::endl;
         }
     }
 
