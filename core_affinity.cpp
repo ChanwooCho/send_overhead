@@ -72,8 +72,7 @@ int main() {
 
         // For debugging: print the actual CPU on which the thread is running.
         int actual_cpu = sched_getcpu();
-        // std::cout << "Thread " << thread_id 
-        //           << " is actually running on CPU " << actual_cpu << std::endl;
+
 
         // Record start time.
         double start_time = omp_get_wtime();
@@ -101,6 +100,8 @@ int main() {
             std::cout << "Thread " << thread_id 
                       << " execution time: " << thread_time * 1000 * 1000 
                       << " us" << std::endl;
+            std::cout << "Thread " << thread_id 
+            << " is actually running on CPU " << actual_cpu << std::endl;
         }
     }
 
