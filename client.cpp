@@ -20,6 +20,9 @@
 #define COLS 5120
 #define B_COLS 128
 
+// Define the size of the message to send (1KB).
+#define ONE_KB 1024
+
 // Structure to pass parameters to the asynchronous send thread.
 struct AsyncSendParams {
     int sockfd;         // Socket descriptor for TCP connection.
@@ -28,7 +31,7 @@ struct AsyncSendParams {
     size_t msg_len;     // Length of the message.
 };
 
-// This function runs in a separate pthread to call send() asynchronously.
+// Function that runs in a separate pthread to call send() asynchronously.
 void* async_send(void* arg) {
     AsyncSendParams* params = (AsyncSendParams*) arg;
     
@@ -44,7 +47,7 @@ void* async_send(void* arg) {
         std::cout << "Async send thread is set to core " << params->core_id << std::endl;
     }
     
-    // Perform the blocking send.
+    // Perform the blocking send of 1KB data.
     ssize_t bytes_sent = send(params->sockfd, params->message, params->msg_len, 0);
     if (bytes_sent < 0) {
         std::cerr << "Send error in async thread: " << strerror(errno) << std::endl;
@@ -60,13 +63,13 @@ void* async_send(void* arg) {
 }
 
 int main(int argc, char* argv[]) {
-    // Check that the command-line argument is provided.
+    // Usage: client <ip_address:port>
     if (argc != 2) {
         std::cerr << "Usage: client <ip_address:port>" << std::endl;
         return -1;
     }
     
-    // Split the IP address and port.
+    // Parse the IP address and port.
     std::string input(argv[1]);
     std::size_t colon_pos = input.find(':');
     if (colon_pos == std::string::npos) {
@@ -102,7 +105,7 @@ int main(int argc, char* argv[]) {
     // Set the number of OpenMP threads to 4.
     omp_set_num_threads(4);
 
-    // Start parallel region.
+    // Start the OpenMP parallel region.
     #pragma omp parallel
     {
         int thread_id = omp_get_thread_num();
@@ -150,7 +153,7 @@ int main(int argc, char* argv[]) {
         }
         std::cout << "Thread " << thread_id << " connected to server." << std::endl;
         
-        // Determine work for this thread.
+        // Determine the range of rows this thread will process.
         int duty = ROWS / 4;
         int start = thread_id * duty;
         int end = (thread_id + 1) * duty;
@@ -163,18 +166,19 @@ int main(int argc, char* argv[]) {
         
         // Matrix multiplication loop.
         for (int i = start; i < end; i++) {
-            // At halfway point, launch asynchronous TCP send.
+            // At the halfway point, launch an asynchronous TCP send of 1KB.
             if (!async_send_started && i == start + (duty / 2)) {
                 async_send_started = true;
-                char temp_msg[64];
-                sprintf(temp_msg, "Async send from thread %d at row %d", thread_id, i);
+                // Create a 1KB message filled with 'A'.
+                char* message = (char*)malloc(ONE_KB);
+                memset(message, 'A', ONE_KB);
                 
-                // Allocate parameters for async send.
+                // Allocate and set parameters for the async send thread.
                 AsyncSendParams* send_params = new AsyncSendParams;
                 send_params->sockfd = sockfd;
                 send_params->core_id = thread_id; // Use cores 0-3 for async send.
-                send_params->message = strdup(temp_msg);
-                send_params->msg_len = strlen(send_params->message);
+                send_params->message = message;
+                send_params->msg_len = ONE_KB;
                 
                 int rc = pthread_create(&send_thread, nullptr, async_send, (void*) send_params);
                 if (rc != 0) {
@@ -185,7 +189,7 @@ int main(int argc, char* argv[]) {
                               << " started async send thread at row " << i << std::endl;
                 }
             }
-            // Matrix multiplication inner loop.
+            // Standard matrix multiplication inner loop.
             for (int j = 0; j < B_COLS; j++) {
                 float sum = 0.0f;
                 for (int k = 0; k < COLS; k++) {
@@ -195,7 +199,7 @@ int main(int argc, char* argv[]) {
             }
         }
         
-        // Wait for the asynchronous send thread if it was started.
+        // Wait for the asynchronous send thread to finish, if it was started.
         if (async_send_started) {
             pthread_join(send_thread, nullptr);
             std::cout << "Thread " << thread_id << " async send thread completed." << std::endl;
@@ -218,7 +222,7 @@ int main(int argc, char* argv[]) {
     }
     std::cout << std::endl;
     
-    // Free allocated memory.
+    // Clean up allocated memory.
     delete[] A;
     delete[] B;
     delete[] C;
