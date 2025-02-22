@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Extract command-line arguments
-    int data_size = 1 * 5120 * 20; // Convert the data size argument to an integer
+    int data_size = 1 * 5120 * 100; // Convert the data size argument to an integer
     int num_clients = 1;      // Number of clients to wait for
     int iterations = 1;
     int port = atoi(argv[1]);             // Convert the port argument to an integer
