@@ -65,6 +65,7 @@ int main(int argc, char* argv[]) {
     // Extract command-line arguments
     int data_size = 1 * 1024; // Convert the data size argument to an integer
     int num_clients = 1;      // Number of clients to wait for
+    int iterations = 4;
     int port = atoi(argv[1]);             // Convert the port argument to an integer
 
     int server_fd, new_socket;
@@ -169,18 +170,9 @@ int main(int argc, char* argv[]) {
     unsigned int sum_interval3;
     
 
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < iterations; ++i) {
         memset(data, 'A' + i % 26, data_size);
         before1 = timeUs();
-        for (int client_socket : client_sockets) {
-            // before2 = timeUs();
-            // size_t bytes_send = send(client_socket, data, data_size, 0);
-            size_t bytes_send = send_all(client_socket, data, data_size, e, i);
-            // interval2 = timeUs() - before2;
-            // printf("iteration %d decoder %d: bytes_send = %d, interval_send = %dus\n", e, i, bytes_send, interval2);
-        }
-        // sum_interval2 += interval2;
-        // Read from all connected clients
 
         for (int client_socket : client_sockets) {
             // before2 = timeUs();
