@@ -40,6 +40,7 @@ int main() {
         int duty = ROWS / 4;
         int start = omp_get_thread_num() * duty;
         int end = (omp_get_thread_num() + 1) * duty;
+        printf("start = %d, end = %d\n", start, end);
         for (int i = start; i < end; i++) {
             for (int j = 0; j < B_COLS; j++) {
                 float sum = 0.0f;
