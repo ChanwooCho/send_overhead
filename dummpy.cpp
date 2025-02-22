@@ -41,14 +41,17 @@ int main() {
     // 각 C[i]는 A[i]와 B의 내적입니다.
     #pragma omp parallel num_threads(4)
     {
-    printf("%d\n", omp_get_thread_num());
-    for (int i = 0; i < ROWS; ++i) {
-        double sum = 0.0;
-        for (int j = 0; j < COLS; ++j) {
-            sum += A[i][j] * B[j];
+        int duty = ROWS // 4;
+        int start = duty * omp_get_thread_num();
+        int end = duty * (omp_get_thread_num() + 1);
+        printf("start = %d, end = %d\n", start, end);
+        for (int i = start; i < end; ++i) {
+            double sum = 0.0;
+            for (int j = 0; j < COLS; ++j) {
+                sum += A[i][j] * B[j];
+            }
+            C[i] = sum;
         }
-        C[i] = sum;
-    }
     }
     // 결과 확인: 처음 10개 요소 출력
     for (int i = 0; i < 10; ++i) {
