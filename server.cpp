@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
     // Extract command-line arguments
     int data_size = 1 * 1024; // Convert the data size argument to an integer
     int num_clients = 1;      // Number of clients to wait for
-    int iterations = 4;
+    int iterations = 1;
     int port = atoi(argv[1]);             // Convert the port argument to an integer
 
     int server_fd, new_socket;
