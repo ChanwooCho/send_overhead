@@ -164,7 +164,7 @@ int main(int argc, char* argv[]) {
             // Process the assigned rows.
             for (int i = start; i < end; i++) {
                 // In thread 3, at a specific point, launch an asynchronous send if enabled.
-                if (!async_send_started && send_overhead && (i == start + (duty / 9 * (thread_id + 1)) || i == start + (duty / 9 * (thread_id + 5)))) {
+                if (!async_send_started && send_overhead && (i == start + (duty / 9 * (thread_id + 1)) || i == start + (duty / 9 * (thread_id + 2)))) {
                     printf("here!\n");
                     async_send_started = true;
                     // Create a 1KB message filled with 'A'.
