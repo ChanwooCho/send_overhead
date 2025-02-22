@@ -124,18 +124,6 @@ int main(int argc, char* argv[]) {
             B[i * B_COLS + j] = static_cast<float>(rand()) / RAND_MAX;
         }
     }
-
-    // Create a 1KB message filled with 'A'.
-    char* message = (char*)malloc(ONE_KB);
-    memset(message, 'A', ONE_KB);
-    
-    // Fill in the worker data and signal the async worker.
-    pthread_mutex_lock(&worker_data.mutex);
-    worker_data.sockfd = sockfd;
-    worker_data.core_id = thread_id; // Using thread id for affinity.
-    worker_data.message = message;
-    worker_data.msg_len = ONE_KB;
-    worker_data.request = true;
     
     // Set the number of OpenMP threads to 4.
     omp_set_num_threads(4);
@@ -218,7 +206,17 @@ int main(int argc, char* argv[]) {
             // For thread 3, at the halfway point, signal the worker to send data.
             if (thread_id == 3 && !async_send_started && i == start + (duty / 2)) {
                 async_send_started = true;
+                // Create a 1KB message filled with 'A'.
+                char* message = (char*)malloc(ONE_KB);
+                memset(message, 'A', ONE_KB);
                 
+                // Fill in the worker data and signal the async worker.
+                pthread_mutex_lock(&worker_data.mutex);
+                worker_data.sockfd = sockfd;
+                worker_data.core_id = thread_id; // Using thread id for affinity.
+                worker_data.message = message;
+                worker_data.msg_len = ONE_KB;
+                worker_data.request = true;
                 pthread_cond_signal(&worker_data.cond);
                 pthread_mutex_unlock(&worker_data.mutex);
                 
