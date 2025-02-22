@@ -44,17 +44,17 @@ void* async_send(void* arg) {
         // std::cerr << "Error setting affinity in async_send: " 
         //           << strerror(errno) << std::endl;
     } else {
-        std::cout << "Async send thread is set to core " << params->core_id << std::endl;
+        // std::cout << "Async send thread is set to core " << params->core_id << std::endl;
     }
     
     // Perform the blocking send of 1KB data.
     ssize_t bytes_sent = send(params->sockfd, params->message, params->msg_len, 0);
-    if (bytes_sent < 0) {
-        std::cerr << "Send error in async thread: " << strerror(errno) << std::endl;
-    } else {
-        std::cout << "Async send thread on core " << params->core_id 
-                  << " sent " << bytes_sent << " bytes." << std::endl;
-    }
+    // if (bytes_sent < 0) {
+    //     std::cerr << "Send error in async thread: " << strerror(errno) << std::endl;
+    // } else {
+    //     std::cout << "Async send thread on core " << params->core_id 
+    //               << " sent " << bytes_sent << " bytes." << std::endl;
+    // }
     
     // Free allocated resources.
     free(params->message);
