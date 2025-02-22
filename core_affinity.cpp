@@ -101,7 +101,7 @@ int main() {
                       << " execution time: " << thread_time * 1000 * 1000 
                       << " us" << std::endl;
             std::cout << "Thread " << thread_id 
-            << " is actually running on CPU " << actual_cpu << std::endl;
+                      << " is actually running on CPU " << actual_cpu << std::endl;
         }
     }
 
