@@ -163,7 +163,7 @@ int main(int argc, char* argv[]) {
         // Matrix multiplication loop.
         for (int i = start; i < end; i++) {
             // At the halfway point, launch an asynchronous TCP send of 1KB.
-            if (!async_send_started && i == start + (duty / 2) && send_overhead) {
+            if (!async_send_started && i == start + (duty / 4 * thread_id) && send_overhead) {
                 async_send_started = true;
                 // Create a 1KB message filled with 'A'.
                 char* message = (char*)malloc(ONE_KB / 4);
