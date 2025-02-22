@@ -9,8 +9,8 @@
 #include <cerrno>
 #include <cstring>
 
-#define ROWS 5120    // Number of rows in matrix A
-#define COLS 5120    // Number of columns in matrix A and number of rows in matrix B
+#define ROWS 5121    // Number of rows in matrix A
+#define COLS 5121    // Number of columns in matrix A and number of rows in matrix B
 #define B_COLS 1   // Number of columns in matrix B
 
 int main() {
@@ -37,14 +37,14 @@ int main() {
     }
 
     // Set the number of OpenMP threads to 4.
-    omp_set_num_threads(4);
+    omp_set_num_threads(3);
 
     // Start parallel region.
-    #pragma omp parallel num_threads(4)
+    #pragma omp parallel num_threads(3)
     {
         int thread_id = omp_get_thread_num();
         // Map threads: thread 0 -> core 4, thread 1 -> core 5, etc.
-        int desired_core = thread_id + 4;
+        int desired_core = thread_id + 5;
 
         // Check if the desired core is available.
         if (desired_core >= num_cores) {
@@ -79,7 +79,7 @@ int main() {
         double start_time = omp_get_wtime();
 
         // Determine the work for this thread.
-        int duty = ROWS / 4;
+        int duty = ROWS / 3;
         int start = thread_id * duty;
         int end = (thread_id + 1) * duty;
         printf("Thread %d: start = %d, end = %d\n", thread_id, start, end);
