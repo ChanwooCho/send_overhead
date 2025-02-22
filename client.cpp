@@ -145,7 +145,7 @@ int main(int argc, char* argv[]) {
             close(sockfd);
             #pragma omp cancel parallel
         }
-        if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0 && thread_id == 3) {
             std::cerr << "Thread " << thread_id << " connection failed: " 
                       << strerror(errno) << std::endl;
             close(sockfd);
