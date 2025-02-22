@@ -16,8 +16,8 @@
 #include <string>
 
 // Matrix dimensions.
-#define ROWS 5121
-#define COLS 5121
+#define ROWS 5120
+#define COLS 5120
 #define B_COLS 1
 
 // Define the size of the message to send (1KB).
@@ -103,15 +103,15 @@ int main(int argc, char* argv[]) {
     }
     
     // Set the number of OpenMP threads to 4.
-    omp_set_num_threads(3);
+    omp_set_num_threads(4);
 
     // Start the OpenMP parallel region.
-    #pragma omp parallel num_threads(3)
+    #pragma omp parallel
     {
         int thread_id = omp_get_thread_num();
         
         // Map matrix multiplication threads to cores 4, 5, 6, and 7.
-        int desired_core = thread_id + 5;
+        int desired_core = thread_id + 4;
         if (desired_core < num_cores) {
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
@@ -154,7 +154,7 @@ int main(int argc, char* argv[]) {
         std::cout << "Thread " << thread_id << " connected to server." << std::endl;
         
         // Determine the range of rows this thread will process.
-        int duty = ROWS / 3;
+        int duty = ROWS / 4;
         int start = thread_id * duty;
         int end = (thread_id + 1) * duty;
         std::cout << "Thread " << thread_id << ": processing rows " 
@@ -167,7 +167,7 @@ int main(int argc, char* argv[]) {
         // Matrix multiplication loop.
         for (int i = start; i < end; i++) {
             // At the halfway point, launch an asynchronous TCP send of 1KB.
-            if (!async_send_started && i == start + (duty / 2) && thread_id == 2) {
+            if (!async_send_started && i == start + (duty / 2) && thread_id == 3) {
                 async_send_started = true;
                 // Create a 1KB message filled with 'A'.
                 char* message = (char*)malloc(ONE_KB);
