@@ -209,7 +209,8 @@ int main(int argc, char* argv[]) {
                     if (thread_exec_time[t] > iter_max)
                         iter_max = thread_exec_time[t];
                 }
-                global_time_sum += iter_max;
+                if (iter >= 10)
+                    global_time_sum += iter_max;
                 std::cout << "Iteration " << iter << " max time: " 
                           << iter_max * 1000000 << " us" << std::endl;
             }
