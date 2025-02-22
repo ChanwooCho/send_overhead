@@ -62,7 +62,7 @@ int main() {
         int duty = ROWS / 4;
         int start = thread_id * duty;
         int end = (thread_id + 1) * duty;
-        printf("Thread %d: start = %d, end = %d\n", thread_id, start, end);
+        // printf("Thread %d: start = %d, end = %d\n", thread_id, start, end);
 
         for (int i = start; i < end; i++) {
             for (int j = 0; j < B_COLS; j++) {
