@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -7,7 +8,7 @@
 #define SIZE 4096  // Matrix size (4096 x 4096)
 
 // Dummy send() function to simulate the send overhead.
-// You can replace the contents of this function with your actual send() implementation.
+// Replace this with your actual send() implementation if needed.
 void send_data() {
     volatile int dummy = 0;
     // A simple loop to simulate some work
