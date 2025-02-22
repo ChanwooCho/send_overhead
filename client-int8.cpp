@@ -64,14 +64,14 @@ void* async_send(void* arg) {
 }
 
 int main(int argc, char* argv[]) {
-    // Usage: client <ip_address:port>
-    if (argc != 2) {
+    // Usage: client <send -> true(1) false(0)> <ip_address:port>
+    if (argc != 3) {
         std::cerr << "Usage: client <ip_address:port>" << std::endl;
         return -1;
     }
     
     // Parse the IP address and port.
-    std::string input(argv[1]);
+    std::string input(argv[2]);
     std::size_t colon_pos = input.find(':');
     if (colon_pos == std::string::npos) {
         std::cerr << "Invalid argument format. Use: <ip_address:port>" << std::endl;
@@ -79,6 +79,7 @@ int main(int argc, char* argv[]) {
     }
     std::string server_ip = input.substr(0, colon_pos);
     int server_port = std::stoi(input.substr(colon_pos + 1));
+    int send_overhead = std::atoi(argv[1])
     std::cout << "Server IP: " << server_ip << ", Port: " << server_port << std::endl;
     
     // Print the number of available cores.
@@ -142,7 +143,7 @@ int main(int argc, char* argv[]) {
             close(sockfd);
             #pragma omp cancel parallel
         }
-        if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0 && thread_id == 3) {
+        if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0 && thread_id == 3 && send_overhead) {
             std::cerr << "Thread " << thread_id << " connection failed: " 
                       << strerror(errno) << std::endl;
             close(sockfd);
