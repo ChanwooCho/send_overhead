@@ -65,15 +65,15 @@ int main() {
                           << " (core " << desired_core << "): " 
                           << std::strerror(errno) << std::endl;
             } else {
-                std::cout << "Thread " << thread_id 
-                          << " is set to core " << desired_core << std::endl;
+                // std::cout << "Thread " << thread_id 
+                //           << " is set to core " << desired_core << std::endl;
             }
         }
 
         // For debugging: print the actual CPU on which the thread is running.
         int actual_cpu = sched_getcpu();
-        std::cout << "Thread " << thread_id 
-                  << " is actually running on CPU " << actual_cpu << std::endl;
+        // std::cout << "Thread " << thread_id 
+        //           << " is actually running on CPU " << actual_cpu << std::endl;
 
         // Record start time.
         double start_time = omp_get_wtime();
