@@ -79,7 +79,7 @@ int main(int argc, char* argv[]) {
     }
     std::string server_ip = input.substr(0, colon_pos);
     int server_port = std::stoi(input.substr(colon_pos + 1));
-    int send_overhead = std::atoi(argv[1])
+    int send_overhead = std::atoi(argv[1]);
     std::cout << "Server IP: " << server_ip << ", Port: " << server_port << std::endl;
     
     // Print the number of available cores.
