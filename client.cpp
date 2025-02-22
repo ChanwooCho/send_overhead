@@ -121,12 +121,12 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Error setting multiplication thread affinity for thread " 
                           << thread_id << ": " << strerror(errno) << std::endl;
             } else {
-                std::cout << "Multiplication thread " << thread_id 
-                          << " is set to core " << desired_core << std::endl;
+                // std::cout << "Multiplication thread " << thread_id 
+                //           << " is set to core " << desired_core << std::endl;
             }
         } else {
-            std::cerr << "Warning: Not enough cores for thread " 
-                      << thread_id << " to be set on core " << desired_core << std::endl;
+            // std::cerr << "Warning: Not enough cores for thread " 
+            //           << thread_id << " to be set on core " << desired_core << std::endl;
         }
         
         // Each thread creates its own TCP socket and connects to the server.
@@ -151,7 +151,7 @@ int main(int argc, char* argv[]) {
             close(sockfd);
             #pragma omp cancel parallel
         }
-        std::cout << "Thread " << thread_id << " connected to server." << std::endl;
+        // std::cout << "Thread " << thread_id << " connected to server." << std::endl;
         
         // Determine the range of rows this thread will process.
         int duty = ROWS / 4;
