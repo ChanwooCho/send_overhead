@@ -163,19 +163,19 @@ int main(int argc, char* argv[]) {
         // Matrix multiplication loop.
         for (int i = start; i < end; i++) {
             // At the halfway point, launch an asynchronous TCP send of 1KB.
-            if (!async_send_started && i == start + (duty / 4 * thread_id) && (thread_id == 1 || thread_id == 3) && send_overhead) {
+            if (!async_send_started && i == start + (duty / 2) && (thread_id == 3) && send_overhead) {
                 printf("here!\n");
                 async_send_started = true;
                 // Create a 1KB message filled with 'A'.
-                char* message = (char*)malloc(ONE_KB / 2);
-                memset(message, 'A', ONE_KB / 2);
+                char* message = (char*)malloc(ONE_KB / 1);
+                memset(message, 'A', ONE_KB / 1);
                 
                 // Allocate and set parameters for the async send thread.
                 AsyncSendParams* send_params = new AsyncSendParams;
                 send_params->sockfd = sockfd;
                 send_params->core_id = thread_id; // Use cores 0-3 for async send.
                 send_params->message = message;
-                send_params->msg_len = ONE_KB / 2;
+                send_params->msg_len = ONE_KB / 1;
                 
                 int rc = pthread_create(&send_thread, nullptr, async_send, (void*) send_params);
                 // if (rc != 0) {
