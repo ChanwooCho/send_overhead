@@ -4,14 +4,20 @@
 #include <omp.h>
 #include <pthread.h>
 #include <sched.h>     // For sched_setaffinity
-#include <unistd.h>    // For syscall
+#include <unistd.h>    // For syscall and sysconf
 #include <sys/syscall.h> // For SYS_gettid
+#include <cerrno>
+#include <cstring>
 
 #define ROWS 5120    // Number of rows in matrix A
 #define COLS 5120    // Number of columns in matrix A and number of rows in matrix B
 #define B_COLS 128   // Number of columns in matrix B
 
 int main() {
+    // Check and print the number of available cores.
+    int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
+    std::cout << "Number of available cores: " << num_cores << std::endl;
+    
     // Allocate memory for matrices A, B, and C.
     float* A = new float[ROWS * COLS];     // Matrix A: 5120 x 5120
     float* B = new float[COLS * B_COLS];     // Matrix B: 5120 x 128
@@ -37,22 +43,32 @@ int main() {
     #pragma omp parallel num_threads(4)
     {
         int thread_id = omp_get_thread_num();
-        // Map each thread: thread 0->core 4, thread 1->core 5, etc.
+        // Map each thread: thread 0 -> core 4, thread 1 -> core 5, etc.
         int core_id = thread_id + 4;
-
-        // Create a CPU set and add the desired core.
-        cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(core_id, &cpuset);
-
-        // Get the thread ID using syscall.
-        pid_t tid = syscall(SYS_gettid);
-        // Set the CPU affinity for the current thread.
-        if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
-            std::cerr << "Error setting affinity for thread " << thread_id << std::endl;
+        
+        // Check if the desired core is available.
+        if (core_id >= num_cores) {
+            std::cerr << "Warning: Thread " << thread_id 
+                      << " requested core " << core_id 
+                      << ", but only " << num_cores 
+                      << " cores are available." << std::endl;
         } else {
-            std::cout << "Thread " << thread_id 
-                      << " is set to core " << core_id << std::endl;
+            // Create a CPU set and add the desired core.
+            cpu_set_t cpuset;
+            CPU_ZERO(&cpuset);
+            CPU_SET(core_id, &cpuset);
+
+            // Get the thread ID using syscall.
+            pid_t tid = syscall(SYS_gettid);
+            // Set the CPU affinity for the current thread.
+            if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
+                std::cerr << "Error setting affinity for thread " << thread_id 
+                          << " (core " << core_id << "): " 
+                          << std::strerror(errno) << std::endl;
+            } else {
+                std::cout << "Thread " << thread_id 
+                          << " is set to core " << core_id << std::endl;
+            }
         }
 
         // Record the start time for this thread.
@@ -62,7 +78,7 @@ int main() {
         int duty = ROWS / 4;
         int start = thread_id * duty;
         int end = (thread_id + 1) * duty;
-        // printf("Thread %d: start = %d, end = %d\n", thread_id, start, end);
+        printf("Thread %d: start = %d, end = %d\n", thread_id, start, end);
 
         for (int i = start; i < end; i++) {
             for (int j = 0; j < B_COLS; j++) {
