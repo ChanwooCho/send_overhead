@@ -1,84 +1,91 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include <sys/time.h>
-#include <omp.h>
 #include <sched.h>
-#include <unistd.h>
-#include <string.h>
+#include <omp.h>
 
-#define SIZE 4096
+#define SIZE 4096  // Matrix size (4096 x 4096)
 
-// Dummy send() function to simulate overhead.
-// Replace this with your actual send() call if needed.
-void send_function() {
-    volatile int sum = 0;
+// Dummy send() function to simulate the send overhead.
+// You can replace the contents of this function with your actual send() implementation.
+void send_data() {
+    volatile int dummy = 0;
+    // A simple loop to simulate some work
     for (int i = 0; i < 100000; i++) {
-        sum += i;
+        dummy += i;
     }
 }
 
-// Set thread affinity to a specific core.
-void set_affinity(int core_id) {
+// Structure for thread argument to pass how many times to call send_data()
+typedef struct {
+    int times;
+} thread_arg;
+
+// Thread function for asynchronous send() calls.
+void* send_thread_func(void* arg) {
+    // Pin this thread to core 0 (or any core not used for matrix multiplication)
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
-    CPU_SET(core_id, &cpuset);
+    CPU_SET(0, &cpuset);
     pthread_t thread = pthread_self();
-    int ret = pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
-    if (ret != 0) {
-        fprintf(stderr, "Error setting affinity on core %d: %s\n", core_id, strerror(ret));
-    }
-}
+    pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
 
-// Function executed by each send() thread.
-void* send_thread_func(void* arg) {
-    // Pin this thread to core 0 (or any other core not used by matrix multiplication)
-    set_affinity(0);
-    send_function();
+    thread_arg *targ = (thread_arg*)arg;
+    for (int i = 0; i < targ->times; i++) {
+        send_data();
+    }
     return NULL;
 }
 
 int main() {
-    // Allocate matrices as 1D arrays (we use row-major order)
+    // Allocate memory for matrices A, B, and C.
     float *A = (float*) malloc(SIZE * SIZE * sizeof(float));
     float *B = (float*) malloc(SIZE * SIZE * sizeof(float));
     float *C = (float*) malloc(SIZE * SIZE * sizeof(float));
-
     if (!A || !B || !C) {
-        fprintf(stderr, "Memory allocation failed.\n");
-        return EXIT_FAILURE;
+        printf("Memory allocation failed\n");
+        return -1;
     }
 
-    // Initialize matrices A and B with random float values.
+    // Initialize matrices: A and B with 1.0, C with 0.0.
     for (int i = 0; i < SIZE * SIZE; i++) {
-        A[i] = (float)rand() / RAND_MAX;
-        B[i] = (float)rand() / RAND_MAX;
+        A[i] = 1.0f;
+        B[i] = 1.0f;
+        C[i] = 0.0f;
     }
 
-    // Create 7 threads that call send_function asynchronously.
-    pthread_t send_threads[7];
-    for (int i = 0; i < 7; i++) {
-        if (pthread_create(&send_threads[i], NULL, send_thread_func, NULL)) {
-            fprintf(stderr, "Failed to create send thread %d\n", i);
-            return EXIT_FAILURE;
-        }
+    // Create an asynchronous thread for send() calls.
+    pthread_t send_thread;
+    thread_arg targ;
+    targ.times = 7;  // Call send_data() 7 times
+
+    if (pthread_create(&send_thread, NULL, send_thread_func, &targ) != 0) {
+        printf("Failed to create send thread\n");
+        return -1;
     }
 
-    // Set OpenMP to use 4 threads for matrix multiplication.
+    // Disable dynamic adjustment of threads (optional).
+    omp_set_dynamic(0);
+    // Set OpenMP to use 4 threads.
     omp_set_num_threads(4);
 
-    // Start timer.
-    struct timeval start, end;
-    gettimeofday(&start, NULL);
+    // Start timing the matrix multiplication.
+    double start_time = omp_get_wtime();
 
     // Matrix multiplication using OpenMP.
-    // Each thread will pin itself to one of the cores 4,5,6,7.
+    // Each thread is pinned to one of the cores 4, 5, 6, or 7.
     #pragma omp parallel
     {
-        int tid = omp_get_thread_num();
-        set_affinity(4 + tid);  // Thread 0->core4, 1->core5, etc.
+        int thread_num = omp_get_thread_num();
+        int core_id = 4 + thread_num;  // Use cores 4,5,6,7 for computation.
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        CPU_SET(core_id, &cpuset);
+        pthread_t tid = pthread_self();
+        pthread_setaffinity_np(tid, sizeof(cpu_set_t), &cpuset);
 
-        #pragma omp for schedule(static)
+        // Use a collapsed loop for better load balance.
+        #pragma omp for collapse(2) schedule(static)
         for (int i = 0; i < SIZE; i++) {
             for (int j = 0; j < SIZE; j++) {
                 float sum = 0.0f;
@@ -90,15 +97,19 @@ int main() {
         }
     }
 
-    // End timer.
-    gettimeofday(&end, NULL);
-    double elapsed_ms = (end.tv_sec - start.tv_sec) * 1000.0 + 
-                        (end.tv_usec - start.tv_usec) / 1000.0;
-    printf("Matrix multiplication took: %f ms\n", elapsed_ms);
+    // End timing after matrix multiplication completes.
+    double end_time = omp_get_wtime();
+    printf("Matrix multiplication took %f seconds\n", end_time - start_time);
 
-    // Wait for send() threads to complete.
-    for (int i = 0; i < 7; i++) {
-        pthread_join(send_threads[i], NULL);
+    // Wait for the asynchronous send thread to finish.
+    pthread_join(send_thread, NULL);
+
+    // Optional: Verify a result.
+    // Since A and B are filled with ones, each element in C should equal SIZE.
+    if (C[0] != (float)SIZE) {
+        printf("Unexpected result: C[0] = %f\n", C[0]);
+    } else {
+        printf("Result verified: C[0] = %f\n", C[0]);
     }
 
     // Free allocated memory.
