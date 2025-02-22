@@ -42,31 +42,22 @@ void* async_send(void* arg) {
     CPU_SET(params->core_id, &cpuset);
     pid_t tid = syscall(SYS_gettid);
     if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
-        // std::cerr << "Error setting affinity in async_send: " 
-        //           << strerror(errno) << std::endl;
-    } else {
-        // std::cout << "Async send thread is set to core " << params->core_id << std::endl;
+        // You can print an error here if needed.
     }
     
-    // Perform the blocking send of 1KB data.
+    // Send 1KB data in a blocking call.
     ssize_t bytes_sent = send(params->sockfd, params->message, params->msg_len, 0);
-    // if (bytes_sent < 0) {
-    //     std::cerr << "Send error in async thread: " << strerror(errno) << std::endl;
-    // } else {
-    //     std::cout << "Async send thread on core " << params->core_id 
-    //               << " sent " << bytes_sent << " bytes." << std::endl;
-    // }
     
-    // Free allocated resources.
+    // Free the allocated memory.
     free(params->message);
     delete params;
     pthread_exit(nullptr);
 }
 
 int main(int argc, char* argv[]) {
-    // Usage: client <send -> true(1) false(0)> <ip_address:port>
+    // Usage: client <send_overhead (1 or 0)> <ip_address:port>
     if (argc != 3) {
-        std::cerr << "Usage: client <ip_address:port>" << std::endl;
+        std::cerr << "Usage: client <send_overhead (1 or 0)> <ip_address:port>" << std::endl;
         return -1;
     }
     
@@ -87,7 +78,6 @@ int main(int argc, char* argv[]) {
     std::cout << "Number of available cores: " << num_cores << std::endl;
     
     // Allocate memory for matrices A, B, and C.
-    // A and B are int8 matrices; C is int32 to store the accumulated result.
     int8_t* A = new int8_t[ROWS * COLS];
     int8_t* B = new int8_t[COLS * B_COLS];
     int32_t* C = new int32_t[ROWS * B_COLS];
@@ -96,7 +86,6 @@ int main(int argc, char* argv[]) {
     srand(static_cast<unsigned int>(time(0)));
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLS; j++) {
-            // Random value between -128 and 127.
             A[i * COLS + j] = static_cast<int8_t>(rand() % 256 - 128);
         }
     }
@@ -108,14 +97,23 @@ int main(int argc, char* argv[]) {
     
     // Set the number of OpenMP threads to 4.
     omp_set_num_threads(4);
-
+    
+    // We will run the matrix multiplication 20 times.
+    const int NUM_ITER = 20;
+    const int NUM_THREADS = 4;
+    // This array will hold each thread's execution time in one iteration.
+    double thread_exec_time[NUM_THREADS] = {0};
+    // This variable will sum the maximum time of each iteration.
+    double global_time_sum = 0.0;
+    
     // Start the OpenMP parallel region.
-    #pragma omp parallel
+    #pragma omp parallel shared(global_time_sum, thread_exec_time, A, B, C, send_overhead, server_ip, server_port)
     {
         int thread_id = omp_get_thread_num();
+        int num_threads = omp_get_num_threads();  // should be 4
         
-        // Map matrix multiplication threads to cores 4, 5, 6, and 7.
-        int desired_core = thread_id + 4;
+        // (Optional) Set CPU affinity for multiplication threads.
+        int desired_core = thread_id + 4; // Map threads to cores 4, 5, 6, 7.
         if (desired_core < num_cores) {
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
@@ -127,7 +125,7 @@ int main(int argc, char* argv[]) {
             }
         }
         
-        // Each thread creates its own TCP socket and connects to the server.
+        // Create a TCP socket once per thread and connect to the server.
         int sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (sockfd < 0) {
             std::cerr << "Thread " << thread_id << " error creating socket: " 
@@ -150,72 +148,84 @@ int main(int argc, char* argv[]) {
             #pragma omp cancel parallel
         }
         
-        // Determine the range of rows this thread will process.
-        int duty = ROWS / 4;
+        // Each thread works on a subset of rows.
+        int duty = ROWS / num_threads;
         int start = thread_id * duty;
         int end = (thread_id + 1) * duty;
         
-        pthread_t send_thread;
-        bool async_send_started = false;
-        int actual_cpu = sched_getcpu();
-        double start_time = omp_get_wtime();
-        
-        // Matrix multiplication loop.
-        for (int i = start; i < end; i++) {
-            // At the halfway point, launch an asynchronous TCP send of 1KB.
-            if (!async_send_started && i == start + (duty / 2) && (thread_id == 3) && send_overhead) {
-                printf("here!\n");
-                async_send_started = true;
-                // Create a 1KB message filled with 'A'.
-                char* message = (char*)malloc(ONE_KB / 1);
-                memset(message, 'A', ONE_KB / 1);
-                
-                // Allocate and set parameters for the async send thread.
-                AsyncSendParams* send_params = new AsyncSendParams;
-                send_params->sockfd = sockfd;
-                send_params->core_id = thread_id; // Use cores 0-3 for async send.
-                send_params->message = message;
-                send_params->msg_len = ONE_KB / 1;
-                
-                int rc = pthread_create(&send_thread, nullptr, async_send, (void*) send_params);
-                // if (rc != 0) {
-                //     std::cerr << "Thread " << thread_id << " failed to create async send thread: " 
-                //               << strerror(rc) << std::endl;
-                // } else {
-                //     std::cout << "Thread " << thread_id 
-                //               << " started async send thread at row " << i << std::endl;
-                // }
-            }
-            // Standard matrix multiplication inner loop.
-            for (int j = 0; j < B_COLS; j++) {
-                int32_t sum = 0;
-                for (int k = 0; k < COLS; k++) {
-                    // Multiply int8_t values and accumulate into an int32_t sum.
-                    sum += static_cast<int32_t>(A[i * COLS + k]) * static_cast<int32_t>(B[k * B_COLS + j]);
+        // Repeat the matrix multiplication NUM_ITER times.
+        for (int iter = 0; iter < NUM_ITER; iter++) {
+            bool async_send_started = false;
+            pthread_t send_thread;
+            double start_time = omp_get_wtime();
+            
+            // Process the assigned rows.
+            for (int i = start; i < end; i++) {
+                // In thread 3, at halfway, launch an asynchronous send if enabled.
+                if (!async_send_started && (thread_id == 3) && send_overhead && (i == start + (duty / 2))) {
+                    printf("here!\n");
+                    async_send_started = true;
+                    // Create a 1KB message filled with 'A'.
+                    char* message = (char*)malloc(ONE_KB);
+                    memset(message, 'A', ONE_KB);
+                    
+                    // Set parameters for the async send thread.
+                    AsyncSendParams* send_params = new AsyncSendParams;
+                    send_params->sockfd = sockfd;
+                    send_params->core_id = thread_id; // Use cores 0-3 for async send.
+                    send_params->message = message;
+                    send_params->msg_len = ONE_KB;
+                    
+                    int rc = pthread_create(&send_thread, nullptr, async_send, (void*) send_params);
+                    // You can check rc for errors if needed.
                 }
-                C[i * B_COLS + j] = sum;
+                // Perform the inner multiplication loop.
+                for (int j = 0; j < B_COLS; j++) {
+                    int32_t sum = 0;
+                    for (int k = 0; k < COLS; k++) {
+                        sum += static_cast<int32_t>(A[i * COLS + k]) * static_cast<int32_t>(B[k * B_COLS + j]);
+                    }
+                    C[i * B_COLS + j] = sum;
+                }
             }
+            
+            // Measure this thread's execution time.
+            double thread_time = omp_get_wtime() - start_time;
+            thread_exec_time[thread_id] = thread_time;
+
+            // If an async send was started, wait for it to finish.
+            if (async_send_started) {
+                pthread_join(send_thread, nullptr);
+            }
+            
+            // Wait for all threads.
+            #pragma omp barrier
+            
+            // Only one thread (here thread 0) finds the maximum time.
+            #pragma omp single
+            {
+                double iter_max = thread_exec_time[0];
+                for (int t = 1; t < num_threads; t++) {
+                    if (thread_exec_time[t] > iter_max)
+                        iter_max = thread_exec_time[t];
+                }
+                global_time_sum += iter_max;
+                std::cout << "Iteration " << iter << " max time: " 
+                          << iter_max * 1000000 << " us" << std::endl;
+            }
+            #pragma omp barrier
         }
         
-        // Wait for the asynchronous send thread to finish, if it was started.
-        // if (async_send_started) {
-        //     pthread_join(send_thread, nullptr);
-        //     // std::cout << "Thread " << thread_id << " async send thread completed." << std::endl;
-        // }
-        
-        double thread_time = omp_get_wtime() - start_time;
-        #pragma omp critical
-        {
-            std::cout << "Thread " << thread_id << " execution time: " 
-                      << thread_time * 1000 * 1000 << " us" << std::endl;
-            std::cout << "Thread " << thread_id 
-                      << " is actually running on CPU " << actual_cpu << std::endl;
-        }
-        
+        // Close the socket after all iterations.
         close(sockfd);
-    }
+    } // End of parallel region.
     
-    // Print the first 10 results of matrix C.
+    // Calculate and print the average matrix multiplication time.
+    double avg_time = global_time_sum / NUM_ITER;
+    std::cout << "Average matrix multiplication time over " << NUM_ITER 
+              << " iterations: " << avg_time * 1000000 << " us" << std::endl;
+    
+    // Print the first 10 results of matrix C (from the last iteration).
     std::cout << "First 10 results of matrix C:" << std::endl;
     for (int i = 0; i < 10 && i < ROWS * B_COLS; i++) {
         std::cout << C[i] << " ";
