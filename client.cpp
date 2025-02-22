@@ -41,8 +41,8 @@ void* async_send(void* arg) {
     CPU_SET(params->core_id, &cpuset);
     pid_t tid = syscall(SYS_gettid);
     if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
-        std::cerr << "Error setting affinity in async_send: " 
-                  << strerror(errno) << std::endl;
+        // std::cerr << "Error setting affinity in async_send: " 
+        //           << strerror(errno) << std::endl;
     } else {
         std::cout << "Async send thread is set to core " << params->core_id << std::endl;
     }
