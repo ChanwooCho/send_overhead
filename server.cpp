@@ -57,16 +57,15 @@ ssize_t send_all(int sock, const char* data, size_t size, int e, int d) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 5) {
-        std::cerr << "Usage: server <data_size(KB)> <# of decoders> <# of clients> <port>" << std::endl;
+    if (argc != 2) {
+        std::cerr << "Usage: server <port>" << std::endl;
         return -1;
     }
 
     // Extract command-line arguments
-    int data_size = atoi(argv[1]) * 1024; // Convert the data size argument to an integer
-    int iterations = atoi(argv[2]) * 2;   // Convert the iterations argument to an integer
-    int num_clients = atoi(argv[3]);      // Number of clients to wait for
-    int port = atoi(argv[4]);             // Convert the port argument to an integer
+    int data_size = 1 * 1024; // Convert the data size argument to an integer
+    int num_clients = 1;      // Number of clients to wait for
+    int port = atoi(argv[1]);             // Convert the port argument to an integer
 
     int server_fd, new_socket;
     struct sockaddr_in address;
@@ -169,45 +168,41 @@ int main(int argc, char* argv[]) {
     unsigned int sum_interval2;
     unsigned int sum_interval3;
     
-    // Main loop to handle reading and writing for all clients
-    for (int e = 0; e < 50; ++e) { // Iterate multiple times as per the original logic
-        sum_interval1 = 0;
-        sum_interval2 = 0;
-        sum_interval3 = 0;
-        for (int i = 0; i < iterations; ++i) {
-            memset(data, 'A' + i % 26, data_size);
-            before1 = timeUs();
-            for (int client_socket : client_sockets) {
-                // before2 = timeUs();
-                // size_t bytes_send = send(client_socket, data, data_size, 0);
-                size_t bytes_send = send_all(client_socket, data, data_size, e, i);
-                // interval2 = timeUs() - before2;
-                // printf("iteration %d decoder %d: bytes_send = %d, interval_send = %dus\n", e, i, bytes_send, interval2);
-            }
-            // sum_interval2 += interval2;
-            // Read from all connected clients
 
-            for (int client_socket : client_sockets) {
-                // before2 = timeUs();
-                // size_t bytes_read = read(client_socket, buffer, data_size);
-                size_t bytes_read = read_all(client_socket, buffer, data_size, e, i);
-                // interval2 = timeUs() - before2;
-                // printf("iteration %d decoder %d: bytes_read = %d, interval_read = %dus\n", e, i, bytes_read, interval2);
-            }
-            // sum_interval3 += interval2;
-            // printf("current recieve data = %c\n", buffer[data_size - 1]);
-            interval1 = timeUs() - before1;
-            sum_interval1 += interval1;
-            printf("iteration %d decoder %d: interval = %dus\n", e, i, interval1);
-            printf("==============================================================\n");
+    for (int i = 0; i < 4; ++i) {
+        memset(data, 'A' + i % 26, data_size);
+        before1 = timeUs();
+        for (int client_socket : client_sockets) {
+            // before2 = timeUs();
+            // size_t bytes_send = send(client_socket, data, data_size, 0);
+            size_t bytes_send = send_all(client_socket, data, data_size, e, i);
+            // interval2 = timeUs() - before2;
+            // printf("iteration %d decoder %d: bytes_send = %d, interval_send = %dus\n", e, i, bytes_send, interval2);
         }
-        // printf("iteration %d's send time = %d ms, read time = %d ms\n", e, sum_interval2 / 1000, sum_interval3 / 1000);
-        printf("iteration %d' Time = %d ms\n\n", e, sum_interval1 / 1000);
-        // if (e > 10) {
-        //     sum_interval += interval;
-        //     printf("iteration %d'sAveraged Time = %d ms\n\n", e, sum_interval / 1000 / (e - 10));
-        // }
+        // sum_interval2 += interval2;
+        // Read from all connected clients
+
+        for (int client_socket : client_sockets) {
+            // before2 = timeUs();
+            // size_t bytes_read = read(client_socket, buffer, data_size);
+            size_t bytes_read = read_all(client_socket, buffer, data_size, e, i);
+            // interval2 = timeUs() - before2;
+            // printf("iteration %d decoder %d: bytes_read = %d, interval_read = %dus\n", e, i, bytes_read, interval2);
+        }
+        // sum_interval3 += interval2;
+        // printf("current recieve data = %c\n", buffer[data_size - 1]);
+        interval1 = timeUs() - before1;
+        sum_interval1 += interval1;
+        printf("iteration %d decoder %d: interval = %dus\n", e, i, interval1);
+        printf("==============================================================\n");
     }
+    // printf("iteration %d's send time = %d ms, read time = %d ms\n", e, sum_interval2 / 1000, sum_interval3 / 1000);
+    printf("iteration %d' Time = %d ms\n\n", e, sum_interval1 / 1000);
+    // if (e > 10) {
+    //     sum_interval += interval;
+    //     printf("iteration %d'sAveraged Time = %d ms\n\n", e, sum_interval / 1000 / (e - 10));
+    // }
+
 
     // Clean up resources
     for (int client_socket : client_sockets) {
