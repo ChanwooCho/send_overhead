@@ -22,7 +22,7 @@
 #define B_COLS 1
 
 // Define the size of the message to send (1KB).
-#define ONE_KB 5120
+#define ONE_KB 2048
 
 // Structure to pass parameters to the asynchronous send thread.
 struct AsyncSendParams {
@@ -162,7 +162,7 @@ int main(int argc, char* argv[]) {
             // Process the assigned rows.
             for (int i = start; i < end; i++) {
                 // In thread 3, at halfway, launch an asynchronous send if enabled.
-                if (!async_send_started && (thread_id == 3) && send_overhead && (i == start + (duty / 2))) {
+                if (!async_send_started && send_overhead && (i == start + (duty / 5 * (thread_id + 1)))) {
                     printf("here!\n");
                     async_send_started = true;
                     // Create a 1KB message filled with 'A'.
