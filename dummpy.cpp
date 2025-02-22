@@ -3,42 +3,42 @@
 #include <ctime>
 #include <omp.h>
 
-#define ROWS 5120  // 행렬 A의 행 수
-#define COLS 5120  // 행렬 A의 열 수, 행렬 B의 행 수
+#define ROWS 5120  // Number of rows in matrix A
+#define COLS 5120  // Number of columns in matrix A and rows in matrix B
 
 int main() {
-    // 행렬 A (5120 x 5120)를 동적 할당
-    double** A = new double*[ROWS];
+    // Dynamically allocate matrix A (ROWS x COLS) using fp32 (float)
+    float** A = new float*[ROWS];
     for (int i = 0; i < ROWS; ++i) {
-        A[i] = new double[COLS];
+        A[i] = new float[COLS];
     }
     
-    // 행렬 B (5120 x 1)를 동적 할당
-    double* B = new double[COLS];
+    // Dynamically allocate matrix B (COLS x 1)
+    float* B = new float[COLS];
     
-    // 결과 행렬 C (5120 x 1)를 동적 할당
-    double* C = new double[ROWS];
+    // Allocate result matrix C (ROWS x 1)
+    float* C = new float[ROWS];
     
-    // 난수 초기화
+    // Initialize random seed
     srand(time(NULL));
     
-    // 행렬 A 초기화 (예: 0~9 사이의 난수)
+    // Initialize matrix A with random numbers (e.g., values between 0 and 9)
     for (int i = 0; i < ROWS; ++i) {
         for (int j = 0; j < COLS; ++j) {
-            A[i][j] = rand() % 10;
+            A[i][j] = static_cast<float>(rand() % 10);
         }
     }
     
-    // 행렬 B 초기화 (예: 0~9 사이의 난수)
+    // Initialize matrix B with random numbers (e.g., values between 0 and 9)
     for (int i = 0; i < COLS; ++i) {
-        B[i] = rand() % 10;
+        B[i] = static_cast<float>(rand() % 10);
     }
     
-    // OpenMP를 사용해 4개의 스레드로 설정
+    // Set OpenMP to use 4 threads
     omp_set_num_threads(4);
     
-    // 행렬 곱셈: C = A * B
-    // 각 C[i]는 A[i]와 B의 내적입니다.
+    // Matrix multiplication: C = A * B
+    // Each C[i] is the dot product of the i-th row of A with B.
     #pragma omp parallel num_threads(4)
     {
         int duty = ROWS / 4;
@@ -46,19 +46,20 @@ int main() {
         int end = duty * (omp_get_thread_num() + 1);
         printf("start = %d, end = %d\n", start, end);
         for (int i = start; i < end; ++i) {
-            double sum = 0.0;
+            float sum = 0.0f;
             for (int j = 0; j < COLS; ++j) {
                 sum += A[i][j] * B[j];
             }
             C[i] = sum;
         }
     }
-    // 결과 확인: 처음 10개 요소 출력
+    
+    // Output the first 10 elements of the result vector
     for (int i = 0; i < 10; ++i) {
         std::cout << "C[" << i << "] = " << C[i] << std::endl;
     }
     
-    // 동적 할당한 메모리 해제
+    // Free dynamically allocated memory
     for (int i = 0; i < ROWS; ++i) {
         delete [] A[i];
     }
