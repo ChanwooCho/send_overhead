@@ -16,8 +16,8 @@
 #include <string>
 
 // Matrix dimensions.
-#define ROWS 5120
-#define COLS 5120
+#define ROWS 5121
+#define COLS 5121
 #define B_COLS 1
 
 // Define the size of the message to send (1KB).
@@ -103,7 +103,7 @@ int main(int argc, char* argv[]) {
     }
     
     // Set the number of OpenMP threads to 4.
-    omp_set_num_threads(4);
+    omp_set_num_threads(3);
 
     // Start the OpenMP parallel region.
     #pragma omp parallel
@@ -154,7 +154,7 @@ int main(int argc, char* argv[]) {
         std::cout << "Thread " << thread_id << " connected to server." << std::endl;
         
         // Determine the range of rows this thread will process.
-        int duty = ROWS / 4;
+        int duty = ROWS / 3;
         int start = thread_id * duty;
         int end = (thread_id + 1) * duty;
         std::cout << "Thread " << thread_id << ": processing rows " 
