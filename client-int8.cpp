@@ -176,13 +176,13 @@ int main(int argc, char* argv[]) {
                 send_params->msg_len = ONE_KB;
                 
                 int rc = pthread_create(&send_thread, nullptr, async_send, (void*) send_params);
-                if (rc != 0) {
-                    std::cerr << "Thread " << thread_id << " failed to create async send thread: " 
-                              << strerror(rc) << std::endl;
-                } else {
-                    std::cout << "Thread " << thread_id 
-                              << " started async send thread at row " << i << std::endl;
-                }
+                // if (rc != 0) {
+                //     std::cerr << "Thread " << thread_id << " failed to create async send thread: " 
+                //               << strerror(rc) << std::endl;
+                // } else {
+                //     std::cout << "Thread " << thread_id 
+                //               << " started async send thread at row " << i << std::endl;
+                // }
             }
             // Standard matrix multiplication inner loop.
             for (int j = 0; j < B_COLS; j++) {
