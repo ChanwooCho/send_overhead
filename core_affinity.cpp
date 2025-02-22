@@ -2,20 +2,22 @@
 #include <cstdlib>
 #include <ctime>
 #include <omp.h>
-#include <pthread.h>  // Needed for pthread functions
-#include <sched.h>    // Needed for CPU affinity
+#include <pthread.h>
+#include <sched.h>     // For sched_setaffinity
+#include <unistd.h>    // For syscall
+#include <sys/syscall.h> // For SYS_gettid
 
 #define ROWS 5120    // Number of rows in matrix A
 #define COLS 5120    // Number of columns in matrix A and number of rows in matrix B
 #define B_COLS 128   // Number of columns in matrix B
 
 int main() {
-    // Allocate memory for matrix A, matrix B, and result matrix C.
+    // Allocate memory for matrices A, B, and C.
     float* A = new float[ROWS * COLS];     // Matrix A: 5120 x 5120
     float* B = new float[COLS * B_COLS];     // Matrix B: 5120 x 128
     float* C = new float[ROWS * B_COLS];     // Result matrix C: 5120 x 128
 
-    // Initialize A and B with random values between 0 and 1.
+    // Initialize matrices A and B with random values between 0 and 1.
     srand(static_cast<unsigned int>(time(0)));
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLS; j++) {
@@ -28,37 +30,35 @@ int main() {
         }
     }
 
-    // Set the number of threads to 4.
+    // Set the number of OpenMP threads to 4.
     omp_set_num_threads(4);
 
-    // Begin the parallel region.
+    // Start parallel region.
     #pragma omp parallel num_threads(4)
     {
         int thread_id = omp_get_thread_num();
-        // Map each thread to a specific core:
-        // thread 0 -> core 4, thread 1 -> core 5, etc.
+        // Map each thread: thread 0->core 4, thread 1->core 5, etc.
         int core_id = thread_id + 4;
 
-        // Prepare a CPU set and add the chosen core.
+        // Create a CPU set and add the desired core.
         cpu_set_t cpuset;
         CPU_ZERO(&cpuset);
         CPU_SET(core_id, &cpuset);
 
-        // Get the current thread and set its affinity.
-        pthread_t current_thread = pthread_self();
-        int rc = pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
-        if (rc != 0) {
-            std::cerr << "Error setting affinity for thread " 
-                      << thread_id << std::endl;
+        // Get the thread ID using syscall.
+        pid_t tid = syscall(SYS_gettid);
+        // Set the CPU affinity for the current thread.
+        if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
+            std::cerr << "Error setting affinity for thread " << thread_id << std::endl;
         } else {
             std::cout << "Thread " << thread_id 
                       << " is set to core " << core_id << std::endl;
         }
 
-        // Record start time for this thread.
+        // Record the start time for this thread.
         double start_time = omp_get_wtime();
 
-        // Each thread computes a part of the matrix multiplication.
+        // Each thread processes a part of the matrix multiplication.
         int duty = ROWS / 4;
         int start = thread_id * duty;
         int end = (thread_id + 1) * duty;
@@ -74,7 +74,7 @@ int main() {
             }
         }
 
-        // Record the end time and print the execution time.
+        // Calculate and print the execution time for this thread.
         double end_time = omp_get_wtime();
         double thread_time = end_time - start_time;
         #pragma omp critical
@@ -85,14 +85,14 @@ int main() {
         }
     }
 
-    // Print the first 10 elements of the result matrix.
+    // Print the first 10 elements of the result matrix for checking.
     std::cout << "First 10 results:" << std::endl;
     for (int i = 0; i < 10 && i < ROWS * B_COLS; i++) {
         std::cout << C[i] << " ";
     }
     std::cout << std::endl;
 
-    // Free the allocated memory.
+    // Free allocated memory.
     delete[] A;
     delete[] B;
     delete[] C;
