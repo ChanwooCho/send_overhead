@@ -99,7 +99,7 @@ int main(int argc, char* argv[]) {
     omp_set_num_threads(4);
     
     // We will run the matrix multiplication 20 times.
-    const int NUM_ITER = 20;
+    const int NUM_ITER = 100;
     const int NUM_THREADS = 4;
     // This array will hold each thread's execution time in one iteration.
     double thread_exec_time[NUM_THREADS] = {0};
