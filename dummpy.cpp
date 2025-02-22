@@ -40,6 +40,7 @@ int main() {
     // 행렬 곱셈: C = A * B
     // 각 C[i]는 A[i]와 B의 내적입니다.
     #pragma omp parallel for
+    printf("%d\n", omp_get_thread_num());
     for (int i = 0; i < ROWS; ++i) {
         double sum = 0.0;
         for (int j = 0; j < COLS; ++j) {
