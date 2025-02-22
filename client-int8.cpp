@@ -39,7 +39,7 @@ void* async_send(void* arg) {
     // Set CPU affinity to the desired core (0-3).
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
-    CPU_SET(params->core_id, &cpuset);
+    CPU_SET(params->core_id % 2 + 1, &cpuset);
     pid_t tid = syscall(SYS_gettid);
     if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
         // std::cerr << "Error setting affinity in async_send: " 
