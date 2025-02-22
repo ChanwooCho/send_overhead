@@ -143,7 +143,7 @@ int main(int argc, char* argv[]) {
             close(sockfd);
             #pragma omp cancel parallel
         }
-        if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0 && thread_id == 3 && send_overhead) {
+        if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0 && thread_id == 3) {
             std::cerr << "Thread " << thread_id << " connection failed: " 
                       << strerror(errno) << std::endl;
             close(sockfd);
@@ -163,7 +163,7 @@ int main(int argc, char* argv[]) {
         // Matrix multiplication loop.
         for (int i = start; i < end; i++) {
             // At the halfway point, launch an asynchronous TCP send of 1KB.
-            if (!async_send_started && i == start + (duty / 2) && thread_id == 3) {
+            if (!async_send_started && i == start + (duty / 2) && thread_id == 3  && send_overhead) {
                 async_send_started = true;
                 // Create a 1KB message filled with 'A'.
                 char* message = (char*)malloc(ONE_KB);
