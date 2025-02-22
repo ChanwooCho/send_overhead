@@ -54,13 +54,15 @@ void matrix_multiplication(const float* A, const float* B, float* C) {
         int thread_id = omp_get_thread_num();
         // Pin OpenMP thread to core 4, 5, 6, or 7
         int core_id = 4 + thread_id;  // thread_id from 0 to 3 gives core 4 to 7
-        cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(core_id, &cpuset);
+        cpu_set_t set;
         
+        printf("tid = %d, cid = %d\n", thread_id, core_id);
+        
+        CPU_ZERO(&set);
+        CPU_SET(core_id, &set);
         // Get the thread id and set its affinity.
         pid_t tid = syscall(SYS_gettid);
-        if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
+        if (sched_setaffinity(0, sizeof(cpu_set_t), &set) != 0) {
             std::cerr << "Warning: Error setting affinity for OpenMP thread " 
                       << thread_id << ": " << strerror(errno) << "\n";
         }
