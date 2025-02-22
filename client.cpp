@@ -157,8 +157,8 @@ int main(int argc, char* argv[]) {
         int duty = ROWS / 4;
         int start = thread_id * duty;
         int end = (thread_id + 1) * duty;
-        std::cout << "Thread " << thread_id << ": processing rows " 
-                  << start << " to " << end - 1 << std::endl;
+        // std::cout << "Thread " << thread_id << ": processing rows " 
+        //           << start << " to " << end - 1 << std::endl;
         
         pthread_t send_thread;
         bool async_send_started = false;
