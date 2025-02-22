@@ -106,7 +106,7 @@ int main(int argc, char* argv[]) {
     omp_set_num_threads(3);
 
     // Start the OpenMP parallel region.
-    #pragma omp parallel
+    #pragma omp parallel num_threads(3)
     {
         int thread_id = omp_get_thread_num();
         
