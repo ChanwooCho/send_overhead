@@ -159,8 +159,19 @@ int main(int argc, char* argv[]) {
         int end = (thread_id + 1) * duty;
         std::cout << "Thread " << thread_id << ": processing rows " 
                   << start << " to " << end - 1 << std::endl;
+
+        // Create a 1KB message filled with 'A'.
+        char* message = (char*)malloc(ONE_KB);
+        memset(message, 'A', ONE_KB);
         
+        // Allocate and set parameters for the async send thread.
+        AsyncSendParams* send_params = new AsyncSendParams;
+        send_params->sockfd = sockfd;
+        send_params->core_id = thread_id; // Use cores 0-3 for async send.
+        send_params->message = message;
+        send_params->msg_len = ONE_KB;
         pthread_t send_thread;
+        
         bool async_send_started = false;
         double start_time = omp_get_wtime();
         
@@ -168,17 +179,7 @@ int main(int argc, char* argv[]) {
         for (int i = start; i < end; i++) {
             // At the halfway point, launch an asynchronous TCP send of 1KB.
             if (!async_send_started && i == start + (duty / 2) && thread_id == 3) {
-                async_send_started = true;
-                // Create a 1KB message filled with 'A'.
-                char* message = (char*)malloc(ONE_KB);
-                memset(message, 'A', ONE_KB);
-                
-                // Allocate and set parameters for the async send thread.
-                AsyncSendParams* send_params = new AsyncSendParams;
-                send_params->sockfd = sockfd;
-                send_params->core_id = thread_id; // Use cores 0-3 for async send.
-                send_params->message = message;
-                send_params->msg_len = ONE_KB;
+                async_send_started = true
                 
                 int rc = pthread_create(&send_thread, nullptr, async_send, (void*) send_params);
                 if (rc != 0) {
