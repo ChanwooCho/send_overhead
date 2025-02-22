@@ -26,17 +26,15 @@ int main() {
 
     // Initialize random seed.
     srand(static_cast<unsigned int>(time(0)));
-    
-    // Initialize matrix A with random integers (0 to 99).
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLS; j++) {
-            A[i * COLS + j] = rand() % 100;
+            // Random value between -128 and 127.
+            A[i * COLS + j] = static_cast<int8_t>(rand() % 256 - 128);
         }
     }
-    // Initialize matrix B with random integers (0 to 99).
     for (int i = 0; i < COLS; i++) {
         for (int j = 0; j < B_COLS; j++) {
-            B[i * B_COLS + j] = rand() % 100;
+            B[i * B_COLS + j] = static_cast<int8_t>(rand() % 256 - 128);
         }
     }
 
