@@ -82,7 +82,6 @@ int main() {
         int duty = ROWS / 4;
         int start = thread_id * duty;
         int end = (thread_id + 1) * duty;
-        printf("Thread %d: start = %d, end = %d\n", thread_id, start, end);
 
         // Matrix multiplication.
         for (int i = start; i < end; i++) {
