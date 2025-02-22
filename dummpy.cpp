@@ -7,6 +7,8 @@
 #include <sched.h>
 #include <unistd.h>
 #include <sys/syscall.h>
+#include <errno.h>
+#include <cstring>
 
 #define SIZE 4096  // Matrix size: 4096 x 4096
 
@@ -34,7 +36,8 @@ void send_thread_func(int thread_id) {
     // Get the thread id using syscall and set its affinity.
     pid_t tid = syscall(SYS_gettid);
     if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
-        std::cerr << "Error setting affinity for send thread " << thread_id << "\n";
+        std::cerr << "Warning: Error setting affinity for send thread " 
+                  << thread_id << ": " << strerror(errno) << "\n";
     }
     
     // Keep calling send_function while matrix multiplication is running.
@@ -44,7 +47,7 @@ void send_thread_func(int thread_id) {
 }
 
 // This function performs matrix multiplication of two SIZE x SIZE matrices.
-// It uses an OpenMP parallel region where each thread is pinned to a core (cores 4–7).
+// It uses an OpenMP parallel region where each thread is intended to be pinned to a core (cores 4–7).
 void matrix_multiplication(const float* A, const float* B, float* C) {
     #pragma omp parallel
     {
@@ -58,7 +61,8 @@ void matrix_multiplication(const float* A, const float* B, float* C) {
         // Get the thread id and set its affinity.
         pid_t tid = syscall(SYS_gettid);
         if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
-            std::cerr << "Error setting affinity for OpenMP thread " << thread_id << "\n";
+            std::cerr << "Warning: Error setting affinity for OpenMP thread " 
+                      << thread_id << ": " << strerror(errno) << "\n";
         }
         
         // Divide work among threads.
@@ -99,7 +103,7 @@ int main() {
     // Start timing the matrix multiplication.
     auto start_time = std::chrono::high_resolution_clock::now();
     
-    // Perform the matrix multiplication (on cores 4–7).
+    // Perform the matrix multiplication (intended to run on cores 4–7).
     matrix_multiplication(A, B, C);
     
     auto end_time = std::chrono::high_resolution_clock::now();
