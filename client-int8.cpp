@@ -45,7 +45,7 @@ void* async_send(void* arg) {
         // std::cerr << "Error setting affinity in async_send: " 
         //           << strerror(errno) << std::endl;
     } else {
-        std::cout << "Async send thread is set to core " << params->core_id << std::endl;
+        // std::cout << "Async send thread is set to core " << params->core_id << std::endl;
     }
     
     // Perform the blocking send of 1KB data.
