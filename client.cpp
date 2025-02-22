@@ -111,7 +111,7 @@ int main(int argc, char* argv[]) {
         int thread_id = omp_get_thread_num();
         
         // Map matrix multiplication threads to cores 4, 5, 6, and 7.
-        int desired_core = thread_id + 4;
+        int desired_core = thread_id + 5;
         if (desired_core < num_cores) {
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
@@ -167,7 +167,7 @@ int main(int argc, char* argv[]) {
         // Matrix multiplication loop.
         for (int i = start; i < end; i++) {
             // At the halfway point, launch an asynchronous TCP send of 1KB.
-            if (!async_send_started && i == start + (duty / 2) && thread_id == 3) {
+            if (!async_send_started && i == start + (duty / 2) && thread_id == 2) {
                 async_send_started = true;
                 // Create a 1KB message filled with 'A'.
                 char* message = (char*)malloc(ONE_KB);
