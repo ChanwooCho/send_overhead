@@ -39,7 +39,8 @@ int main() {
     
     // 행렬 곱셈: C = A * B
     // 각 C[i]는 A[i]와 B의 내적입니다.
-    #pragma omp parallel for
+    #pragma omp parallel num_threads(4)
+    {
     printf("%d\n", omp_get_thread_num());
     for (int i = 0; i < ROWS; ++i) {
         double sum = 0.0;
@@ -48,7 +49,7 @@ int main() {
         }
         C[i] = sum;
     }
-    
+    }
     // 결과 확인: 처음 10개 요소 출력
     for (int i = 0; i < 10; ++i) {
         std::cout << "C[" << i << "] = " << C[i] << std::endl;
