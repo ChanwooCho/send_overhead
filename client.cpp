@@ -18,7 +18,7 @@
 // Matrix dimensions.
 #define ROWS 5120
 #define COLS 5120
-#define B_COLS 128
+#define B_COLS 1
 
 // Define the size of the message to send (1KB).
 #define ONE_KB 1024
