@@ -5,7 +5,8 @@
 #include <vector>
 #include <atomic>
 #include <sched.h>
-#include <pthread.h>
+#include <unistd.h>
+#include <sys/syscall.h>
 
 #define SIZE 4096  // Matrix size: 4096 x 4096
 
@@ -16,7 +17,7 @@ std::atomic<bool> running(true);
 // It does some dummy work to create an overhead.
 void send_function(int id) {
     volatile int dummy = 0;
-    // Loop to simulate work (you can adjust the number of iterations)
+    // Loop to simulate work (adjust iterations as needed)
     for (int i = 0; i < 100000; i++) {
         dummy += (i % 7);
     }
@@ -29,10 +30,11 @@ void send_thread_func(int thread_id) {
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
     CPU_SET(core_id, &cpuset);
-    pthread_t current_thread = pthread_self();
-    int rc = pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
-    if (rc != 0) {
-        std::cerr << "Error setting affinity for send thread " << thread_id << ": " << rc << "\n";
+
+    // Get the thread id using syscall and set its affinity.
+    pid_t tid = syscall(SYS_gettid);
+    if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
+        std::cerr << "Error setting affinity for send thread " << thread_id << "\n";
     }
     
     // Keep calling send_function while matrix multiplication is running.
@@ -52,13 +54,14 @@ void matrix_multiplication(const float* A, const float* B, float* C) {
         cpu_set_t cpuset;
         CPU_ZERO(&cpuset);
         CPU_SET(core_id, &cpuset);
-        pthread_t current_thread = pthread_self();
-        int rc = pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
-        if (rc != 0) {
-            std::cerr << "Error setting affinity for OpenMP thread " << thread_id << ": " << rc << "\n";
+        
+        // Get the thread id and set its affinity.
+        pid_t tid = syscall(SYS_gettid);
+        if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
+            std::cerr << "Error setting affinity for OpenMP thread " << thread_id << "\n";
         }
         
-        // Use OpenMP for loop to divide work among threads.
+        // Divide work among threads.
         #pragma omp for schedule(static)
         for (int i = 0; i < SIZE; i++) {
             for (int j = 0; j < SIZE; j++) {
@@ -78,7 +81,7 @@ int main() {
     float* B = new float[SIZE * SIZE];
     float* C = new float[SIZE * SIZE];
     
-    // Initialize matrices A and B with 1.0 (you can change these values as needed).
+    // Initialize matrices A and B with 1.0.
     for (int i = 0; i < SIZE * SIZE; i++) {
         A[i] = 1.0f;
         B[i] = 1.0f;
