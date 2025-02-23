@@ -23,7 +23,7 @@
 #define B_COLS 1
 
 // Define the size of the message to send (1KB).
-#define ONE_KB 1137
+#define ONE_KB 2024
 
 // Structure to pass parameters to the asynchronous send thread.
 struct AsyncSendParams {
@@ -233,7 +233,7 @@ int main(int argc, char* argv[]) {
     } // End of parallel region.
     
     // Calculate and print the average matrix multiplication time.
-    double avg_time = global_time_sum / NUM_ITER;
+    double avg_time = global_time_sum / (NUM_ITER - 10);
     std::cout << "Average matrix multiplication time over " << NUM_ITER 
               << " iterations: " << avg_time * 1000000 << " us" << std::endl;
     
