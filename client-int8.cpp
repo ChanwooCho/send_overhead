@@ -116,7 +116,7 @@ int main(int argc, char* argv[]) {
         int num_threads = omp_get_num_threads();  // should be 4
         
         // (Optional) Set CPU affinity for multiplication threads.
-        int desired_core = thread_id + 4; // Map threads to cores 4, 5, 6, 7.
+        int desired_core = thread_id ; // Map threads to cores 4, 5, 6, 7.
         if (desired_core < num_cores) {
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
