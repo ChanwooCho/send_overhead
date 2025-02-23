@@ -14,14 +14,16 @@
 #include <sys/syscall.h>  // For SYS_gettid
 #include <errno.h>
 #include <string>
+#include <cstdint>
+#include <algorithm>      // For std::min
 
 // Matrix dimensions.
-#define ROWS 5120
+#define ROWS 128
 #define COLS 5120
 #define B_COLS 1
 
 // Define the size of the message to send (1KB).
-#define ONE_KB 1137
+#define ONE_KB 2024
 
 // Structure to pass parameters to the asynchronous send thread.
 struct AsyncSendParams {
@@ -41,7 +43,7 @@ void* async_send(void* arg) {
     CPU_SET(params->core_id, &cpuset);
     pid_t tid = syscall(SYS_gettid);
     if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
-        // Optionally, print an error message.
+        // Error handling can be added here if needed.
     }
     
     // Send 1KB data in a blocking call.
@@ -54,14 +56,16 @@ void* async_send(void* arg) {
 }
 
 int main(int argc, char* argv[]) {
-    // Usage: client <send_overhead (1 or 0)> <ip_address:port>
-    if (argc != 3) {
-        std::cerr << "Usage: client <send_overhead (1 or 0)> <ip_address:port>" << std::endl;
+    // Usage: client <send_overhead (1 or 0)> <# of heads> <ip_address:port>
+    if (argc != 4) {
+        std::cerr << "Usage: client <send_overhead (1 or 0)> <# of heads> <ip_address:port>" << std::endl;
         return -1;
     }
     
-    // Parse the IP address and port.
-    std::string input(argv[2]);
+    // Parse command line arguments.
+    int send_overhead = std::atoi(argv[1]);
+    int num_head = std::atoi(argv[2]);
+    std::string input(argv[3]);
     std::size_t colon_pos = input.find(':');
     if (colon_pos == std::string::npos) {
         std::cerr << "Invalid argument format. Use: <ip_address:port>" << std::endl;
@@ -69,28 +73,25 @@ int main(int argc, char* argv[]) {
     }
     std::string server_ip = input.substr(0, colon_pos);
     int server_port = std::stoi(input.substr(colon_pos + 1));
-    int send_overhead = std::atoi(argv[1]);
+
     std::cout << "Server IP: " << server_ip << ", Port: " << server_port << std::endl;
     
     // Print the number of available cores.
     int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
     std::cout << "Number of available cores: " << num_cores << std::endl;
     
-    // Allocate memory for matrices A, B, and C as floats.
-    float* A = new float[ROWS * COLS];
+    // Allocate memory for matrices A, B, and C as float arrays.
+    float* A = new float[ROWS * num_head * COLS];
     float* B = new float[COLS * B_COLS];
-    float* C = new float[ROWS * B_COLS];
+    float* C = new float[ROWS * num_head * B_COLS];
 
-    // Seed the random number generator.
+    // Initialize matrices A and B with random float values between -1 and 1.
     srand(static_cast<unsigned int>(time(0)));
-    
-    // Initialize matrix A with random float values in range [-1, 1].
-    for (int i = 0; i < ROWS; i++) {
+    for (int i = 0; i < ROWS * num_head; i++) {
         for (int j = 0; j < COLS; j++) {
             A[i * COLS + j] = static_cast<float>(rand()) / RAND_MAX * 2.0f - 1.0f;
         }
     }
-    // Initialize matrix B with random float values in range [-1, 1].
     for (int i = 0; i < COLS; i++) {
         for (int j = 0; j < B_COLS; j++) {
             B[i * B_COLS + j] = static_cast<float>(rand()) / RAND_MAX * 2.0f - 1.0f;
@@ -100,12 +101,12 @@ int main(int argc, char* argv[]) {
     // Set the number of OpenMP threads to 4.
     omp_set_num_threads(4);
     
-    // We will run the matrix multiplication NUM_ITER times.
+    // We will run the matrix multiplication 100 times.
     const int NUM_ITER = 100;
     const int NUM_THREADS = 4;
-    // Array to hold each thread's execution time in one iteration.
+    // This array will hold each thread's execution time in one iteration.
     double thread_exec_time[NUM_THREADS] = {0};
-    // Variable to sum the maximum time of each iteration.
+    // This variable will sum the maximum time of each iteration.
     double global_time_sum = 0.0;
     
     // Start the OpenMP parallel region.
@@ -151,7 +152,7 @@ int main(int argc, char* argv[]) {
         }
         
         // Each thread works on a subset of rows.
-        int duty = ROWS / num_threads;
+        int duty = ROWS * num_head / num_threads;
         int start = thread_id * duty;
         int end = (thread_id + 1) * duty;
         
@@ -161,33 +162,40 @@ int main(int argc, char* argv[]) {
             pthread_t send_thread;
             double start_time = omp_get_wtime();
             
-            // Process the assigned rows.
-            for (int i = start; i < end; i++) {
-                // In thread 3, at a specific point, launch an asynchronous send if enabled.
-                if (!async_send_started && send_overhead && (i == start + (duty / 9 * (thread_id + 1)) || i == start + (duty / 9 * (thread_id + 5)))) {
-                    printf("here!\n");
-                    // async_send_started = true;
-                    // Create a 1KB message filled with 'A'.
-                    char* message = (char*)malloc(ONE_KB);
-                    memset(message, 'A', ONE_KB);
-                    
-                    // Set parameters for the async send thread.
-                    AsyncSendParams* send_params = new AsyncSendParams;
-                    send_params->sockfd = sockfd;
-                    send_params->core_id = thread_id; // Use cores 0-3 for async send.
-                    send_params->message = message;
-                    send_params->msg_len = ONE_KB;
-                    
-                    int rc = pthread_create(&send_thread, nullptr, async_send, (void*) send_params);
-                    // You can check rc for errors if needed.
-                }
-                // Perform the inner multiplication loop.
-                for (int j = 0; j < B_COLS; j++) {
-                    float sum = 0.0f;
-                    for (int k = 0; k < COLS; k++) {
-                        sum += A[i * COLS + k] * B[k * B_COLS + j];
+            // Tiled matrix multiplication with a tile size of 5 x 1.
+            const int TILE_ROWS = 5;
+            const int TILE_COLS = 1; // Because B_COLS is 1.
+            for (int ii = start; ii < end; ii += TILE_ROWS) {
+                int i_max = std::min(ii + TILE_ROWS, end);
+                for (int jj = 0; jj < B_COLS; jj += TILE_COLS) {
+                    int j_max = std::min(jj + TILE_COLS, B_COLS);
+                    for (int i = ii; i < i_max; i++) {
+                        // Launch async send at a specific row.
+                        if (!async_send_started && send_overhead && (i == start + (duty / 5 * (thread_id + 1)))) {
+                            async_send_started = true;
+                            printf("here!\n");
+                            // Create a 1KB message filled with 'A'.
+                            char* message = (char*)malloc(ONE_KB);
+                            memset(message, 'A', ONE_KB);
+                            
+                            // Set parameters for the async send thread.
+                            AsyncSendParams* send_params = new AsyncSendParams;
+                            send_params->sockfd = sockfd;
+                            send_params->core_id = thread_id; // Use cores 0-3 for async send.
+                            send_params->message = message;
+                            send_params->msg_len = ONE_KB;
+                            
+                            int rc = pthread_create(&send_thread, nullptr, async_send, (void*) send_params);
+                            // Check rc for errors if needed.
+                        }
+                        for (int j = jj; j < j_max; j++) {
+                            float sum = 0.0f;
+                            for (int k = 0; k < COLS; k++) {
+                                sum += A[i * COLS + k] * B[k * B_COLS + j];
+                            }
+                            C[i * B_COLS + j] = sum;
+                        }
                     }
-                    C[i * B_COLS + j] = sum;
                 }
             }
             
@@ -203,7 +211,7 @@ int main(int argc, char* argv[]) {
             // Wait for all threads.
             #pragma omp barrier
             
-            // Only one thread (here thread 0) finds the maximum time.
+            // Only one thread (thread 0) finds the maximum time.
             #pragma omp single
             {
                 double iter_max = thread_exec_time[0];
@@ -224,13 +232,13 @@ int main(int argc, char* argv[]) {
     } // End of parallel region.
     
     // Calculate and print the average matrix multiplication time.
-    double avg_time = global_time_sum / NUM_ITER;
+    double avg_time = global_time_sum / (NUM_ITER - 10);
     std::cout << "Average matrix multiplication time over " << NUM_ITER 
               << " iterations: " << avg_time * 1000000 << " us" << std::endl;
     
     // Print the first 10 results of matrix C (from the last iteration).
     std::cout << "First 10 results of matrix C:" << std::endl;
-    for (int i = 0; i < 10 && i < ROWS * B_COLS; i++) {
+    for (int i = 0; i < 10 && i < ROWS * num_head * B_COLS; i++) {
         std::cout << C[i] << " ";
     }
     std::cout << std::endl;
