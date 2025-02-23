@@ -18,7 +18,7 @@
 #include <algorithm>      // For std::min
 
 // Matrix dimensions.
-#define ROWS 512
+#define ROWS 128
 #define COLS 5120
 #define B_COLS 1
 
@@ -57,13 +57,15 @@ void* async_send(void* arg) {
 
 int main(int argc, char* argv[]) {
     // Usage: client <send_overhead (1 or 0)> <ip_address:port>
-    if (argc != 3) {
-        std::cerr << "Usage: client <send_overhead (1 or 0)> <ip_address:port>" << std::endl;
+    if (argc != 4) {
+        std::cerr << "Usage: client <send_overhead (1 or 0)> <# of heads> <ip_address:port>" << std::endl;
         return -1;
     }
     
     // Parse the IP address and port.
-    std::string input(argv[2]);
+    int send_overhead = std::atoi(argv[1]);
+    int num_head = std::atoi(argv[2]);
+    std::string input(argv[3]);
     std::size_t colon_pos = input.find(':');
     if (colon_pos == std::string::npos) {
         std::cerr << "Invalid argument format. Use: <ip_address:port>" << std::endl;
@@ -71,7 +73,7 @@ int main(int argc, char* argv[]) {
     }
     std::string server_ip = input.substr(0, colon_pos);
     int server_port = std::stoi(input.substr(colon_pos + 1));
-    int send_overhead = std::atoi(argv[1]);
+
     std::cout << "Server IP: " << server_ip << ", Port: " << server_port << std::endl;
     
     // Print the number of available cores.
@@ -79,13 +81,13 @@ int main(int argc, char* argv[]) {
     std::cout << "Number of available cores: " << num_cores << std::endl;
     
     // Allocate memory for matrices A, B, and C.
-    int8_t* A = new int8_t[ROWS * COLS];
+    int8_t* A = new int8_t[ROWS * num_head * COLS];
     int8_t* B = new int8_t[COLS * B_COLS];
-    int32_t* C = new int32_t[ROWS * B_COLS];
+    int32_t* C = new int32_t[ROWS * num_head * B_COLS];
 
     // Initialize matrices A and B with random int8_t values.
     srand(static_cast<unsigned int>(time(0)));
-    for (int i = 0; i < ROWS; i++) {
+    for (int i = 0; i < ROWS * num_head; i++) {
         for (int j = 0; j < COLS; j++) {
             A[i * COLS + j] = static_cast<int8_t>(rand() % 256 - 128);
         }
@@ -150,7 +152,7 @@ int main(int argc, char* argv[]) {
         }
         
         // Each thread works on a subset of rows.
-        int duty = ROWS / num_threads;
+        int duty = ROWS * num_head / num_threads;
         int start = thread_id * duty;
         int end = (thread_id + 1) * duty;
         
@@ -239,7 +241,7 @@ int main(int argc, char* argv[]) {
     
     // Print the first 10 results of matrix C (from the last iteration).
     std::cout << "First 10 results of matrix C:" << std::endl;
-    for (int i = 0; i < 10 && i < ROWS * B_COLS; i++) {
+    for (int i = 0; i < 10 && i < ROWS * num_head * B_COLS; i++) {
         std::cout << C[i] << " ";
     }
     std::cout << std::endl;
