@@ -169,8 +169,9 @@ int main(int argc, char* argv[]) {
                     int j_max = std::min(jj + TILE_COLS, B_COLS);
                     for (int i = ii; i < i_max; i++) {
                         // Launch async send at a specific row.
-                        if (!async_send_started && send_overhead && (i >= start + (duty / 5 * (thread_id + 1)))) {
-                            async_send_started = true;
+                        // !async_send_started && send_overhead && (i == start + (duty / 5 * (thread_id + 1)))
+                        if (!async_send_started && send_overhead && (i == start + (duty / 9 * (thread_id + 1)) || i == start + (duty / 9 * (thread_id + 5)))) {
+                            // async_send_started = true;
                             printf("here!\n");
                             // Create a 1KB message filled with 'A'.
                             char* message = (char*)malloc(ONE_KB);
