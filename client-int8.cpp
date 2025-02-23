@@ -174,7 +174,7 @@ int main(int argc, char* argv[]) {
                         // !async_send_started && send_overhead && (thread_id == 0) && (i == start + (duty / 4 * (thread_id + 1)) || i == start + (duty / 4 * (thread_id + 3)))
                         // !async_send_started && send_overhead && (thread_id != 3) && (i == start + (duty / 4 * (thread_id + 1)))
                         // !async_send_started && send_overhead && (thread_id == 3) && (i == start + (duty / 2))
-                        if (!async_send_started && send_overhead && (thread_id == 0) && (i == start + (duty / 4 * (thread_id + 1)) || i == start + (duty / 4 * (thread_id + 3)))) {
+                        if (!async_send_started && send_overhead && (thread_id == 3) && (i == start + (duty / 2))) {
                             // async_send_started = true;
                             printf("here!\n");
                             // Create a 1KB message filled with 'A'.
