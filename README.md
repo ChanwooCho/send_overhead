@@ -22,5 +22,5 @@ g++ server.cpp -o server
 
 Matmul을 진행할 때는 4-7 cores를 사용하고
 
-send()를 진행할 때는 1-3 cores를 사용한다 (즉 matmul 도중에 3번 send() matmul 끝나고 1번 send() 진행하는 scenario)
+send()를 진행할 때는 1-3 cores를 사용한다 (즉 matmul 도중에 3번 send() matmul, 끝나고 1번 send() 진행하는 scenario)
 
