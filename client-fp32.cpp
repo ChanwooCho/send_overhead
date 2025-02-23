@@ -181,7 +181,7 @@ int main(int argc, char* argv[]) {
                             // Set parameters for the async send thread.
                             AsyncSendParams* send_params = new AsyncSendParams;
                             send_params->sockfd = sockfd;
-                            send_params->core_id = thread_id; // Use cores 0-3 for async send.
+                            send_params->core_id = thread_id + 4; // Use cores 0-3 for async send.
                             send_params->message = message;
                             send_params->msg_len = ONE_KB;
                             
