@@ -1,8 +1,11 @@
 g++ -fopenmp -O2 client-int8.cpp -o client
+
 g++ -fopenmp -O2 client-fp32.cpp -o client
+
 g++ server.cpp -o server
 
 ./server 9998
+
 ./client-int8 0 23 192.168.xxx.xxx:9998
 
 1st config  0 -> only matmul
