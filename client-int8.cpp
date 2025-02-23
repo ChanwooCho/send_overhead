@@ -23,7 +23,7 @@
 #define B_COLS 1
 
 // Define the size of the message to send (1KB).
-#define ONE_KB 2560
+#define ONE_KB 5120
 
 // Structure to pass parameters to the asynchronous send thread.
 struct AsyncSendParams {
