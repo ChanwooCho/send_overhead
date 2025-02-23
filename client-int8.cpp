@@ -15,6 +15,7 @@
 #include <errno.h>
 #include <string>
 #include <cstdint>        // For int8_t and int32_t
+#include <algorithm>      // For std::min
 
 // Matrix dimensions.
 #define ROWS 512
@@ -42,7 +43,7 @@ void* async_send(void* arg) {
     CPU_SET(params->core_id, &cpuset);
     pid_t tid = syscall(SYS_gettid);
     if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
-        // You can print an error here if needed.
+        // Error handling can be added here if needed.
     }
     
     // Send 1KB data in a blocking call.
@@ -98,7 +99,7 @@ int main(int argc, char* argv[]) {
     // Set the number of OpenMP threads to 4.
     omp_set_num_threads(4);
     
-    // We will run the matrix multiplication 20 times.
+    // We will run the matrix multiplication 100 times.
     const int NUM_ITER = 100;
     const int NUM_THREADS = 4;
     // This array will hold each thread's execution time in one iteration.
@@ -159,35 +160,41 @@ int main(int argc, char* argv[]) {
             pthread_t send_thread;
             double start_time = omp_get_wtime();
             
-            // Process the assigned rows.
-            for (int i = start; i < end; i++) {
-                // In thread 3, at halfway, launch an asynchronous send if enabled.
-                // !async_send_started && send_overhead && (i == start + (duty / 9 * (thread_id + 1)) || i == start + (duty / 9 * (thread_id + 5)))
-                // !async_send_started && send_overhead && (i == start + (duty / 5 * (thread_id + 1)))
-                if (!async_send_started && send_overhead && (i == start + (duty / 5 * (thread_id + 1)))) {
-                    printf("here!\n");
-                    // async_send_started = true;
-                    // Create a 1KB message filled with 'A'.
-                    char* message = (char*)malloc(ONE_KB);
-                    memset(message, 'A', ONE_KB);
-                    
-                    // Set parameters for the async send thread.
-                    AsyncSendParams* send_params = new AsyncSendParams;
-                    send_params->sockfd = sockfd;
-                    send_params->core_id = thread_id; // Use cores 0-3 for async send.
-                    send_params->message = message;
-                    send_params->msg_len = ONE_KB;
-                    
-                    int rc = pthread_create(&send_thread, nullptr, async_send, (void*) send_params);
-                    // You can check rc for errors if needed.
-                }
-                // Perform the inner multiplication loop.
-                for (int j = 0; j < B_COLS; j++) {
-                    int32_t sum = 0;
-                    for (int k = 0; k < COLS; k++) {
-                        sum += static_cast<int32_t>(A[i * COLS + k]) * static_cast<int32_t>(B[k * B_COLS + j]);
+            // Tiled matrix multiplication with a tile size of 5 x 1.
+            const int TILE_ROWS = 5;
+            const int TILE_COLS = 1; // Because B_COLS is 1.
+            for (int ii = start; ii < end; ii += TILE_ROWS) {
+                int i_max = std::min(ii + TILE_ROWS, end);
+                for (int jj = 0; jj < B_COLS; jj += TILE_COLS) {
+                    int j_max = std::min(jj + TILE_COLS, B_COLS);
+                    for (int i = ii; i < i_max; i++) {
+                        // Launch async send at a specific row.
+                        if (!async_send_started && send_overhead && (i >= start + (duty / 5 * (thread_id + 1)))) {
+                            async_send_started = true;
+                            printf("here!\n");
+                            // Create a 1KB message filled with 'A'.
+                            char* message = (char*)malloc(ONE_KB);
+                            memset(message, 'A', ONE_KB);
+                            
+                            // Set parameters for the async send thread.
+                            AsyncSendParams* send_params = new AsyncSendParams;
+                            send_params->sockfd = sockfd;
+                            send_params->core_id = thread_id; // Use cores 0-3 for async send.
+                            send_params->message = message;
+                            send_params->msg_len = ONE_KB;
+                            
+                            int rc = pthread_create(&send_thread, nullptr, async_send, (void*) send_params);
+                            // You can check rc for errors if needed.
+                        }
+                        for (int j = jj; j < j_max; j++) {
+                            int32_t sum = 0;
+                            for (int k = 0; k < COLS; k++) {
+                                sum += static_cast<int32_t>(A[i * COLS + k]) *
+                                       static_cast<int32_t>(B[k * B_COLS + j]);
+                            }
+                            C[i * B_COLS + j] = sum;
+                        }
                     }
-                    C[i * B_COLS + j] = sum;
                 }
             }
             
@@ -203,7 +210,7 @@ int main(int argc, char* argv[]) {
             // Wait for all threads.
             #pragma omp barrier
             
-            // Only one thread (here thread 0) finds the maximum time.
+            // Only one thread (thread 0) finds the maximum time.
             #pragma omp single
             {
                 double iter_max = thread_exec_time[0];
