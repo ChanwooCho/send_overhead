@@ -174,23 +174,23 @@ int main(int argc, char* argv[]) {
                         // !async_send_started && send_overhead && (thread_id == 0) && (i == start + (duty / 4 * (thread_id + 1)) || i == start + (duty / 4 * (thread_id + 3)))
                         // !async_send_started && send_overhead && (thread_id != 3) && (i == start + (duty / 4 * (thread_id + 1)))
                         // !async_send_started && send_overhead && (thread_id == 3) && (i == start + (duty / 2))
-                        if (!async_send_started && send_overhead && (thread_id != 3) && (i == start + (duty / 4 * (thread_id + 1)))) {
-                            // async_send_started = true;
-                            printf("here!\n");
-                            // Create a 1KB message filled with 'A'.
-                            char* message = (char*)malloc(ONE_KB);
-                            memset(message, 'A', ONE_KB);
+                        // if (!async_send_started && send_overhead && (thread_id != 3) && (i == start + (duty / 4 * (thread_id + 1)))) {
+                        //     // async_send_started = true;
+                        //     printf("here!\n");
+                        //     // Create a 1KB message filled with 'A'.
+                        //     char* message = (char*)malloc(ONE_KB);
+                        //     memset(message, 'A', ONE_KB);
                             
-                            // Set parameters for the async send thread.
-                            AsyncSendParams* send_params = new AsyncSendParams;
-                            send_params->sockfd = sockfd;
-                            send_params->core_id = thread_id + 4; // Use cores 0-3 for async send.
-                            send_params->message = message;
-                            send_params->msg_len = ONE_KB;
+                        //     // Set parameters for the async send thread.
+                        //     AsyncSendParams* send_params = new AsyncSendParams;
+                        //     send_params->sockfd = sockfd;
+                        //     send_params->core_id = thread_id + 4; // Use cores 0-3 for async send.
+                        //     send_params->message = message;
+                        //     send_params->msg_len = ONE_KB;
                             
-                            int rc = pthread_create(&send_thread, nullptr, async_send, (void*) send_params);
-                            // You can check rc for errors if needed.
-                        }
+                        //     int rc = pthread_create(&send_thread, nullptr, async_send, (void*) send_params);
+                        //     // You can check rc for errors if needed.
+                        // }
                         for (int j = jj; j < j_max; j++) {
                             int32_t sum = 0;
                             for (int k = 0; k < COLS; k++) {
